@@ -357,10 +357,15 @@ function wireSepLabel(d,o){
   i.addEventListener("input",()=>{o.text=i.value.trim();m.textContent=i.value||"+ título";w.classList.toggle("empty",!i.value);save()});
   i.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key==="Escape"){e.preventDefault();i.blur()}});
   d.querySelectorAll("hr").forEach(h=>h.onclick=()=>i.focus())}
+/* suma de minutos de cada separador: las tareas que tiene debajo, hasta el siguiente separador o el final de la lista */
+let sepTot={};
+function calcSep(arr){let cur=null;arr.forEach(t=>{if(t.sep){cur=t.id;sepTot[cur]=0}else if(cur)sepTot[cur]+=Math.max(0,t.min|0)})}
+const durMin=m=>{const h=Math.floor(m/60),r=m%60;return h?(r?`${h} h ${r} min`:`${h} h`):`${r} min`};
 function sepRow(t,zone){
   const d=document.createElement("div");d.className="sepr";d.setAttribute("role","separator");
   if(S.view)d.hidden=true;
-  d.innerHTML=`<span class="grip" title="Arrastrar" aria-hidden="true">⋮⋮</span><hr>${sepLabel(t)}<hr><span class="sepact">${zone==="hoy"?`<button type="button" class="uph dwn" title="Bajar este separador a Cola">↓ Cola</button>`:`<button type="button" class="uph" title="Subir este separador a Hoy">↑ Hoy</button>`}<button class="x" aria-label="Borrar separador" title="Borrar separador">×</button></span>`;
+  const tot=sepTot[t.id]||0;
+  d.innerHTML=`<span class="grip" title="Arrastrar" aria-hidden="true">⋮⋮</span><hr>${sepLabel(t)}${tot?`<span class="sept" title="Tiempo de las tareas de este tramo (hasta el siguiente separador)">${durMin(tot)}</span>`:""}<hr><span class="sepact">${zone==="hoy"?`<button type="button" class="uph dwn" title="Bajar este separador a Cola">↓ Cola</button>`:`<button type="button" class="uph" title="Subir este separador a Hoy">↑ Hoy</button>`}<button class="x" aria-label="Borrar separador" title="Borrar separador">×</button></span>`;
   d.querySelector(".uph").onclick=()=>zone==="hoy"?moveTo(t.id,"cola",lastSec.cola[0]||null):moveTo(t.id,"hoy",null);
   d.querySelector(".x").onclick=()=>{S.tasks=S.tasks.filter(x=>x.id!==t.id);commit();flashU("Separador borrado.")};wireSepLabel(d,t);
   d.querySelector(".grip").addEventListener("mousedown",()=>d.draggable=true);
@@ -642,6 +647,7 @@ function render(){
   const hr=t=>hm(plan[t.id].s);
   /* agrega las filas de una sección con una línea cada vez que cambian de bloque (y de día en Semana) */
   const rowsWithBlocks=(arr,zone,whenFn)=>{
+    calcSep(arr);
     const groups=[];
     arr.forEach(t=>{const p=plan[t.id],bl=[...S.week[wd(p.o)]].sort((x,y)=>toM(x[0])-toM(y[0]));
       let i=bl.findIndex(b=>p.s>=toM(b[0])&&p.s<toM(b[1]));if(i<0)i=bl.findIndex(b=>p.s===toM(b[1]));
@@ -661,6 +667,7 @@ function render(){
   if(!hoy.length)empty("Nada en Hoy. Arrastra aquí una tarea desde Cola (o usa el botón de la tarea → Hoy).","hoy");
   foot(sumLine(hoy,capHoy),"hoy");
   const shC=secHead(L,`Cola`,"cola","wait");if(cola.length){const fb=document.createElement("button");fb.type="button";fb.className="sbt";fb.textContent="Llenar Hoy ↑";fb.title="Sube a Hoy las tareas de Cola que quepan en el tiempo libre de hoy";fb.onclick=fillHoy;shC.insertBefore(fb,shC.querySelector(".sbt"));}
+  calcSep(cola);
   if(cola.length){const box=document.createElement("div");box.className="bgrp cq";cola.forEach(t=>box.appendChild(t.sep?sepRow(t,"cola"):taskRow(t,"cola","cola")));L.appendChild(box)}
   if(!cola.length)empty("La cola está vacía. Aquí esperan las tareas que bajas de Hoy.","cola");
   foot(`${noT(cola)}${noSep(cola).length} tareas · <b>${tm(cola)} h</b>`,"cola");
