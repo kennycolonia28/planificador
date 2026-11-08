@@ -1,0 +1,40 @@
+/* Planificador · estilos de cuenta y guardado en la nube */
+.apphead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.acct{display:flex;align-items:center;gap:10px;flex:none}
+.csync{font:500 12px var(--body,system-ui);color:var(--muted,#66707D);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.csync::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.8}
+.csync.ok{color:var(--ok,#2E7D32)}
+.csync.busy{color:var(--muted,#66707D)}
+.csync.busy::before{animation:cpulse 1s ease-in-out infinite}
+.csync.off{color:#B26A00}
+.csync.bad{color:var(--hot,#C62828)}
+@keyframes cpulse{50%{opacity:.2}}
+.cacc{position:relative}
+.cacc>summary{list-style:none;cursor:pointer}
+.cacc>summary::-webkit-details-marker{display:none}
+.cav{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent,#2A4D80);color:var(--accent-ink,#fff);font:700 14px var(--body,system-ui)}
+.cmenu{position:absolute;right:0;top:calc(100% + 6px);z-index:50;background:var(--surface,#fff);border:1px solid var(--line,#DDE2E9);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.16);padding:6px;min-width:220px;display:flex;flex-direction:column;gap:2px}
+.cme{font-size:12px;color:var(--muted,#66707D);padding:6px 10px 8px;border-bottom:1px solid var(--line,#DDE2E9);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis}
+.cmenu a,.cmenu button{display:block;text-align:left;border:none;background:none;padding:8px 10px;border-radius:7px;font:500 14px var(--body,system-ui);color:var(--ink,#1A1F26);text-decoration:none;cursor:pointer;width:100%}
+.cmenu a:hover,.cmenu button:hover{background:var(--soft,#EEF2F7)}
+.cmenu .cdanger{color:var(--hot,#C62828)}
+.ccover{position:fixed;inset:0;z-index:80;display:grid;place-items:center;background:var(--bg,#F3F5F8)}
+.ccover[hidden]{display:none}
+.cbox{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--muted,#66707D);font:15px var(--body,system-ui)}
+.cbox button{font:inherit;border:1px solid var(--line,#DDE2E9);background:var(--surface,#fff);color:var(--ink,#1A1F26);border-radius:7px;padding:5px 12px;margin-left:6px;cursor:pointer}
+.cspin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line,#DDE2E9);border-top-color:var(--accent,#2A4D80);animation:cspin .8s linear infinite}
+@keyframes cspin{to{transform:rotate(360deg)}}
+.cmodal{position:fixed;inset:0;z-index:90;background:rgba(15,20,30,.4);display:grid;place-items:center;padding:16px}
+.cdlg{background:var(--surface,#fff);color:var(--ink,#1A1F26);border:1px solid var(--line,#DDE2E9);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:20px;width:min(420px,100%);display:flex;flex-direction:column;gap:10px}
+.cdlg h3{margin:0;font:700 1.1rem var(--display,system-ui)}
+.cdlg p{margin:0;font-size:14px;color:var(--muted,#66707D);line-height:1.5}
+.cfld{display:flex;flex-direction:column;gap:4px;font:600 13px var(--body,system-ui)}
+.cfld input{font:16px var(--body,system-ui);padding:9px 11px;border:1px solid var(--line,#DDE2E9);border-radius:8px;background:var(--surface,#fff);color:var(--ink,#1A1F26)}
+.cdlg .cerr{color:var(--hot,#C62828);font-size:13px;min-height:0}
+.cbtns{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:4px}
+.cbtns button{font:600 14px var(--body,system-ui);border:1px solid var(--line,#DDE2E9);background:var(--surface,#fff);color:var(--ink,#1A1F26);border-radius:8px;padding:9px 14px;cursor:pointer}
+.cbtns .cprim{background:var(--accent,#2A4D80);border-color:var(--accent,#2A4D80);color:var(--accent-ink,#fff)}
+.cbtns .cred{background:var(--hot,#C62828);border-color:var(--hot,#C62828);color:#fff}
+.cnew{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:12px;background:var(--ink,#1A1F26);color:var(--surface,#fff);padding:10px 12px 10px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);font:500 14px var(--body,system-ui);max-width:calc(100vw - 24px)}
+.cnew button{border:none;background:var(--accent,#2A4D80);color:var(--accent-ink,#fff);font:600 13px var(--body,system-ui);border-radius:8px;padding:7px 12px;cursor:pointer;flex:none}
+@media (max-width:640px){.csync{font-size:11px}.csync{max-width:120px;overflow:hidden;text-overflow:ellipsis}}

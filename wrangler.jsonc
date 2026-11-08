@@ -1,0 +1,21 @@
+{
+  // Configuración de Cloudflare para el Planificador
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "planificador",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      // Sin "database_id": al publicar, Cloudflare crea la base sola y la conecta.
+      // Las tablas las crea el servidor la primera vez que se usa.
+      "database_name": "planificador-db"
+    }
+  ],
+  "observability": { "enabled": true }
+}

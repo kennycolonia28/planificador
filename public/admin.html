@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Planificador · Administración</title>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/jdecked/twemoji@v15.1.0/assets/svg/1f680.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{--bg:#F3F5F8;--surface:#fff;--ink:#1A1F26;--muted:#66707D;--line:#DDE2E9;--accent:#2A4D80;--accent-ink:#fff;--hot:#C62828;--ok:#2E7D32;--soft:#EEF2F7;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#12161C;--surface:#1A2029;--ink:#E8ECF1;--muted:#97A1AE;--line:#2C3542;--accent:#7FA6E0;--accent-ink:#0F1520;--hot:#EF6B6B;--ok:#6CC070;--soft:#202836;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Figtree",system-ui,sans-serif;padding:24px 16px 48px}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font:700 1.5rem "Bricolage Grotesque",system-ui,sans-serif;margin:0}
+h2{font:700 1.05rem "Bricolage Grotesque",system-ui,sans-serif;margin:0}
+a{color:var(--accent)}
+.sp{flex:1}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input{font:14px inherit;font-family:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:7px 10px}
+button{font:500 13px "Figtree",system-ui,sans-serif;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:7px;padding:6px 11px;cursor:pointer}
+button:hover{background:var(--soft)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.danger{color:var(--hot)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.mono{font:500 13px "JetBrains Mono",monospace}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;background:var(--soft);color:var(--muted)}
+.pill.admin{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.pill.off{background:color-mix(in srgb,var(--hot) 14%,transparent);color:var(--hot)}
+.pill.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.note{color:var(--muted);font-size:12.5px;margin:0}
+.box{background:var(--soft);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.toast{min-height:18px;color:var(--ok);font-size:13px}
+.toast.bad{color:var(--hot)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.st{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.st b{display:block;font:600 1.2rem "JetBrains Mono",monospace}
+.st span{font-size:12px;color:var(--muted)}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Administración</h1><span class="note" id="who"></span><span class="sp"></span><a href="/app">← Volver al planificador</a></header>
+  <div class="stats" id="stats"></div>
+  <div class="toast" id="toast" role="status"></div>
+  <section class="panel">
+    <h2>Invitaciones</h2>
+    <p class="note">Cada código sirve para crear <b>una</b> cuenta. Comparte el enlace: el código ya va incluido.</p>
+    <div class="row"><input id="note" placeholder="Para quién (opcional)" maxlength="80"><input id="n" type="number" min="1" max="20" value="1" style="width:70px" aria-label="Cantidad"><button class="primary" id="mk">Crear código</button></div>
+    <div class="box" id="fresh" hidden></div>
+    <div class="tw"><table><thead><tr><th>Código</th><th>Para</th><th>Creado</th><th>Estado</th><th></th></tr></thead><tbody id="inv"></tbody></table></div>
+  </section>
+  <section class="panel">
+    <h2>Usuarios</h2>
+    <div class="box" id="pwbox" hidden></div>
+    <div class="tw"><table><thead><tr><th>Correo</th><th>Rol</th><th>Estado</th><th>Registrado</th><th>Última vez</th><th>Último guardado</th><th>Datos</th><th></th></tr></thead><tbody id="users"></tbody></table></div>
+  </section>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+const MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const fd=t=>{if(!t)return"—";const d=new Date(t);return d.getDate()+" "+MES[d.getMonth()]+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
+const ago=t=>{if(!t)return"nunca";const m=Math.round((Date.now()-t)/60000);if(m<2)return"ahora";if(m<60)return"hace "+m+" min";const h=Math.round(m/60);if(h<48)return"hace "+h+" h";return"hace "+Math.round(h/24)+" días"};
+const kb=n=>n?n<1024?n+" B":Math.round(n/1024)+" KB":"—";
+function toast(t,bad){const e=$("toast");e.textContent=t;e.className="toast"+(bad?" bad":"");clearTimeout(toast.t);toast.t=setTimeout(()=>e.textContent="",5000)}
+async function call(url,opt={}){const r=await fetch(url,{...opt,headers:{"content-type":"application/json"}});const d=await r.json().catch(()=>({}));
+  if(r.status===401){location.replace("/");throw 0}if(!r.ok){toast(d.error||"No se pudo.",true);throw 0}return d}
+let me=null;
+async function load(){
+  const [u,i]=await Promise.all([call("/api/admin/users"),call("/api/admin/invites")]);me=u.me;
+  const week=Date.now()-7*864e5,users=u.users;
+  $("stats").innerHTML=[[users.length,"cuentas"],[users.filter(x=>x.last_seen>week).length,"activas esta semana"],[users.filter(x=>x.updated_at>week).length,"guardaron esta semana"],[i.invites.filter(x=>!x.used_at).length,"invitaciones libres"]].map(([v,l])=>`<div class="st"><b>${v}</b><span>${l}</span></div>`).join("");
+  $("users").innerHTML=users.map(x=>`<tr><td>${esc(x.email)}${x.id===me?' <span class="note">(tú)</span>':""}</td>
+    <td><span class="pill ${x.role==="admin"?"admin":""}">${x.role==="admin"?"Admin":"Usuario"}</span></td>
+    <td><span class="pill ${x.status==="active"?"ok":"off"}">${x.status==="active"?"Activa":"Desactivada"}</span>${x.must_change?' <span class="note">clave temporal</span>':""}</td>
+    <td>${fd(x.created_at)}</td><td>${ago(x.last_seen)}</td><td>${ago(x.updated_at)}</td><td class="mono">${kb(x.size)}</td>
+    <td>${x.id===me?"":`<button data-a="reset" data-id="${x.id}" data-e="${esc(x.email)}">Clave temporal</button> <button data-a="status" data-id="${x.id}" data-s="${x.status==="active"?"disabled":"active"}" class="${x.status==="active"?"danger":""}">${x.status==="active"?"Desactivar":"Activar"}</button> <button data-a="role" data-id="${x.id}" data-r="${x.role==="admin"?"user":"admin"}">${x.role==="admin"?"Quitar admin":"Hacer admin"}</button>`}</td></tr>`).join("");
+  $("inv").innerHTML=i.invites.length?i.invites.map(x=>`<tr><td class="mono">${esc(x.code)}</td><td>${esc(x.note)||"—"}</td><td>${fd(x.created_at)}</td>
+    <td>${x.used_at?`<span class="pill ok">Usado</span> ${esc(x.used_email||"")}`:'<span class="pill">Libre</span>'}</td>
+    <td>${x.used_at?"":`<button data-a="copy" data-c="${esc(x.code)}">Copiar enlace</button> <button data-a="del" data-c="${esc(x.code)}" class="danger">Anular</button>`}</td></tr>`).join(""):`<tr><td colspan="5" class="note">Aún no creas invitaciones.</td></tr>`;
+}
+const link=c=>location.origin+"/?invitacion="+encodeURIComponent(c);
+const copy=t=>navigator.clipboard.writeText(t).then(()=>toast("Copiado."),()=>toast("No se pudo copiar; selecciónalo a mano.",true));
+$("mk").onclick=async()=>{const d=await call("/api/admin/invites",{method:"POST",body:JSON.stringify({note:$("note").value,count:+$("n").value||1})});
+  const f=$("fresh");f.hidden=false;f.innerHTML=`<b>${d.codes.length===1?"Código creado":"Códigos creados"}</b>`+d.codes.map(c=>`<div class="row"><span class="mono">${c}</span><span class="note">${esc(link(c))}</span><button data-a="copy" data-c="${c}">Copiar enlace</button></div>`).join("");
+  $("note").value="";load()};
+document.addEventListener("click",async e=>{const b=e.target.closest("button[data-a]");if(!b)return;const a=b.dataset.a;
+  if(a==="copy")return copy(link(b.dataset.c));
+  if(a==="del"){if(!confirm("¿Anular este código? Ya no servirá para registrarse."))return;await call("/api/admin/invites/"+b.dataset.c,{method:"DELETE",body:"{}"});toast("Código anulado.");return load()}
+  if(a==="status"){if(b.dataset.s==="disabled"&&!confirm("¿Desactivar esta cuenta? Se cerrará su sesión y no podrá entrar; sus datos se conservan."))return;
+    await call(`/api/admin/users/${b.dataset.id}/status`,{method:"POST",body:JSON.stringify({status:b.dataset.s})});toast("Listo.");return load()}
+  if(a==="role"){if(!confirm(b.dataset.r==="admin"?"¿Darle acceso de administrador? Podrá ver y gestionar todas las cuentas.":"¿Quitarle el acceso de administrador?"))return;
+    await call(`/api/admin/users/${b.dataset.id}/role`,{method:"POST",body:JSON.stringify({role:b.dataset.r})});toast("Listo.");return load()}
+  if(a==="reset"){if(!confirm(`¿Crear una contraseña temporal para ${b.dataset.e}? Su contraseña actual dejará de servir.`))return;
+    const d=await call(`/api/admin/users/${b.dataset.id}/reset`,{method:"POST",body:"{}"});
+    const p=$("pwbox");p.hidden=false;p.innerHTML=`<b>Contraseña temporal para ${esc(b.dataset.e)}</b><div class="row"><span class="mono" style="font-size:16px">${d.temp}</span><button data-a="copyt" data-t="${d.temp}">Copiar</button></div><p class="note">Se muestra solo esta vez. Envíasela por un canal privado; al entrar, el planificador le pedirá crear una nueva.</p>`;return load()}
+  if(a==="copyt")return copy(b.dataset.t)});
+call("/api/me").then(d=>{if(d.role!=="admin"){location.replace("/app");return}$("who").textContent=d.email;load()}).catch(()=>{});
+</script>
+</body>
+</html>

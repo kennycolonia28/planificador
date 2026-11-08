@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Planificador · Acceso</title>
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/jdecked/twemoji@v15.1.0/assets/svg/1f680.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#F3F5F8;--surface:#fff;--ink:#1A1F26;--muted:#66707D;--line:#DDE2E9;--accent:#2A4D80;--accent-ink:#fff;--hot:#C62828;--ok:#2E7D32;--soft:#EEF2F7;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#12161C;--surface:#1A2029;--ink:#E8ECF1;--muted:#97A1AE;--line:#2C3542;--accent:#7FA6E0;--accent-ink:#0F1520;--hot:#EF6B6B;--ok:#6CC070;--soft:#202836;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.45 "Figtree",system-ui,sans-serif;padding:24px 16px}
+.card{width:min(400px,100%);background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 24px 22px;box-shadow:0 1px 3px rgba(0,0,0,.05),0 10px 34px rgba(0,0,0,.06)}
+.logo{font-size:30px;line-height:1}
+h1{font:700 1.6rem/1.15 "Bricolage Grotesque",system-ui,sans-serif;margin:10px 0 4px;letter-spacing:-.01em}
+.sub{margin:0 0 20px;color:var(--muted);font-size:14px}
+.tabs{display:flex;gap:4px;padding:4px;background:var(--soft);border-radius:10px;margin-bottom:18px}
+.tabs button{flex:1;border:none;background:transparent;padding:8px;border-radius:7px;font:600 14px inherit;font-family:inherit;color:var(--muted);cursor:pointer}
+.tabs button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+form{display:flex;flex-direction:column;gap:12px}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600}
+input{font:16px "Figtree",system-ui,sans-serif;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
+input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+.hint{font-weight:400;color:var(--muted);font-size:12px}
+.pw{position:relative}
+.pw button{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--muted);font:500 12px inherit;font-family:inherit;padding:6px;cursor:pointer}
+button.primary{margin-top:4px;border:none;background:var(--accent);color:var(--accent-ink);border-radius:9px;padding:12px;font:600 15px "Figtree",system-ui,sans-serif;cursor:pointer}
+button.primary:disabled{opacity:.6;cursor:wait}
+.msg{min-height:20px;font-size:13px;color:var(--hot)}
+.msg.ok{color:var(--ok)}
+.first{background:var(--soft);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.foot{text-align:center;margin-top:16px;font-size:12px;color:var(--muted)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="logo" aria-hidden="true">🚀</div>
+  <h1>Planificador</h1>
+  <p class="sub">Tu día, tus bloques y tus prioridades, en cualquier dispositivo.</p>
+  <div class="first" id="first" hidden>Eres la primera persona en entrar: crea tu cuenta y serás el <b>administrador</b>. No necesitas código de invitación.</div>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" data-t="in" class="on" aria-selected="true">Iniciar sesión</button>
+    <button type="button" role="tab" data-t="up" aria-selected="false">Crear cuenta</button>
+  </div>
+  <form id="f" novalidate>
+    <label>Correo<input id="email" type="email" autocomplete="email" required></label>
+    <label>Contraseña <span class="hint" id="pwHint" hidden>Mínimo 8 caracteres</span>
+      <span class="pw"><input id="pass" type="password" autocomplete="current-password" required minlength="8"><button type="button" id="show">Ver</button></span></label>
+    <label id="invL" hidden>Código de invitación <span class="hint">Te lo da quien te invitó</span><input id="invite" autocomplete="off" autocapitalize="characters" placeholder="ABCD-EFGH"></label>
+    <div class="msg" id="msg" role="status"></div>
+    <button class="primary" id="go" type="submit">Entrar</button>
+  </form>
+  <p class="foot" id="fpw">¿Olvidaste tu contraseña? Escríbele al administrador para que te dé una temporal.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let mode="in",first=false;
+fetch("/api/me").then(r=>{if(r.ok)location.replace("/app")}).catch(()=>{});
+fetch("/api/setup").then(r=>r.json()).then(d=>{first=!!d.firstUser;if(first){$("first").hidden=false;setMode("up")}}).catch(()=>{});
+function setMode(m){mode=m;
+  document.querySelectorAll(".tabs button").forEach(b=>{const on=b.dataset.t===m;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)});
+  $("invL").hidden=m!=="up"||first;$("pwHint").hidden=m!=="up";$("fpw").hidden=m!=="in";
+  $("pass").autocomplete=m==="up"?"new-password":"current-password";
+  $("go").textContent=m==="up"?"Crear cuenta":"Entrar";$("msg").textContent=""}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>setMode(b.dataset.t));
+$("show").onclick=()=>{const p=$("pass");p.type=p.type==="password"?"text":"password";$("show").textContent=p.type==="password"?"Ver":"Ocultar"};
+const inv=new URLSearchParams(location.search).get("invitacion");if(inv){$("invite").value=inv;setMode("up")}
+$("f").onsubmit=async e=>{e.preventDefault();
+  const email=$("email").value.trim(),password=$("pass").value,msg=$("msg");
+  if(!email||!password){msg.textContent="Completa tu correo y contraseña.";return}
+  if(mode==="up"&&password.length<8){msg.textContent="La contraseña debe tener al menos 8 caracteres.";return}
+  if(mode==="up"&&!first&&!$("invite").value.trim()){msg.textContent="Escribe tu código de invitación.";return}
+  $("go").disabled=true;msg.textContent="";
+  try{const r=await fetch(mode==="up"?"/api/register":"/api/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email,password,invite:$("invite").value})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){msg.textContent=d.error||"No se pudo. Inténtalo otra vez.";return}
+    msg.className="msg ok";msg.textContent=mode==="up"?"Cuenta creada. Entrando…":"Entrando…";location.replace("/app")}
+  catch(err){msg.textContent="Sin conexión. Revisa tu internet."}
+  finally{$("go").disabled=false}};
+</script>
+</body>
+</html>
