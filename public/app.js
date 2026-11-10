@@ -93,6 +93,9 @@ const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"
 const nowM=()=>{const d=new Date();return Math.ceil((d.getHours()*60+d.getMinutes())/5)*5};
 const wd=o=>{const d=new Date();d.setDate(d.getDate()+o);return d.getDay()};
 const capDay=w=>S.week[w].reduce((a,b)=>a+Math.max(0,toM(b[1])-toM(b[0])),0);
+/* modo "Sin bloques": Hoy es un solo tramo desde la hora actual hasta la medianoche (los bloques guardados no se tocan) */
+const BL=w=>S.noBlk?[["00:00","24:00"]]:S.week[w];
+const hoyCapM=()=>{const from=S.from==null?nowM():toM(S.from);return BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0)};
 const capWeek=()=>[0,1,2,3,4,5,6].reduce((a,w)=>a+capDay(w),0);
 function flash(t){$("toast").textContent=t;clearTimeout(flash.t);flash.t=setTimeout(()=>$("toast").textContent="",2600)}
 if(S.day!==dk()){S.from=null;S.day=dk()}
@@ -123,7 +126,7 @@ const zoneOf=o=>o<0?"cola":"hoy";
 /* pone hora solo a lo que tú fijaste en Hoy (desde la hora elegida); todo lo demás es Cola y nunca sube solo */
 function schedule(){
   const from=S.from==null?nowM():toM(S.from),free=[],N=NDAYS(),L=DL();
-  for(let o=0;o<=N;o++)free.push(S.week[wd(o)].map(b=>[Math.max(toM(b[0]),o?0:from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]));
+  for(let o=0;o<=N;o++)free.push(BL(wd(o)).map(b=>[Math.max(toM(b[0]),o?0:from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]));
   /* cursor secuencial por día: una tarea nunca vuelve a rellenar un hueco anterior, así se respeta el orden de la lista */
   const cur=()=>free.map(()=>({k:0,pos:0}));
   const fit=(c,o,m)=>{const sl=free[o],st=c[o];while(st.k<sl.length){if(st.pos<sl[st.k][0])st.pos=sl[st.k][0];if(sl[st.k][1]-st.pos>=m){const s=st.pos;st.pos+=m;return s}st.k++}return null};
@@ -143,7 +146,7 @@ function schedule(){
    Separadores y tareas sin minutos nunca bajan. */
 function hoyOverflow(tasks){
   const from=S.from==null?nowM():toM(S.from);
-  const sl=S.week[wd(0)].map(b=>[Math.max(toM(b[0]),from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]);
+  const sl=BL(wd(0)).map(b=>[Math.max(toM(b[0]),from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]);
   let k=0,pos=0;const out=[];
   (tasks||S.tasks).filter(t=>!t.done&&pinOf(t)==="hoy").forEach(t=>{const m=Math.max(0,t.min|0);if(t.sep||!m)return;
     let kk=k,pp=pos,ok=false;
@@ -151,7 +154,7 @@ function hoyOverflow(tasks){
     if(ok){k=kk;pos=pp}else out.push(t)});
   return out}
 function hoyFree(){const from=S.from==null?nowM():toM(S.from);
-  const cap=S.week[wd(0)].reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
+  const cap=BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
   const used=S.tasks.filter(t=>!t.done&&!t.sep&&pinOf(t)==="hoy").reduce((a,t)=>a+(t.min|0),0);
   return Math.max(0,cap-used)}
 /* baja a Cola (arriba) lo que no cabe. Se guarda junto con el cambio que lo provocó, así Deshacer revierte las dos cosas. */
@@ -233,7 +236,7 @@ function moveTo(id,zone,beforeId,quiet){
 /* sube a Hoy, en el orden de Cola, las tareas que quepan en el tiempo libre que queda hoy (se salta las que no caben y sigue con las más cortas) */
 function fillHoy(){
   const from=S.from==null?nowM():toM(S.from);
-  const cap=S.week[wd(0)].reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
+  const cap=BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
   const mins=id=>{const t=S.tasks.find(x=>x.id===id);return t?(t.min|0):0};
   let used=lastSec.hoy.reduce((a,id)=>a+mins(id),0),n=0;
   [...lastSec.cola].forEach(id=>{const m=mins(id);if(!(m>0)||used+m>cap)return;if(moveTo(id,"hoy",null,true)){used+=m;n++}});
@@ -521,6 +524,7 @@ function synthesis(wk,open){
   return`<h3>Síntesis de la semana</h3><div class="sts">${tile(wk.length,"tareas hechas")}${tile(fmt(tot)+" h","tiempo invertido")}${tile(wk.length?Math.round(tot/wk.length)+" min":"—","promedio por tarea")}${tile(best?DNL[new Date(dts(best[0])).getDay()]:"—",best?"día más productivo · "+fmt(best[1])+" h":"día más productivo")}</div>
   <div class="sg"><div><h4>Por prioridad</h4><div class="pvh sb">${pri}</div></div><div><h4>Por tipo de trabajo</h4><div class="pvh sb">${tg}</div></div></div>
   <ul class="sl">${lines.map(x=>`<li>${x}</li>`).join("")}</ul>`}
+$("blkMode").onclick=e=>{const b=e.target.closest("button[data-m]");if(!b)return;const v=b.dataset.m==="no";if(!!S.noBlk===v)return;S.noBlk=v;commit();flashU(v?"Modo sin bloques: Hoy va hasta la medianoche.":"Modo con bloques activado.")};
 (()=>{const m=$("maxH");m.innerHTML=Array.from({length:17},(_,i)=>i+8).map(h=>`<option value="${h}">${h} h</option>`).join("");m.value=String(S.maxH||12);
   m.onchange=()=>{const v=+m.value,over=[0,1,2,3,4,5,6].filter(w=>capDay(w)>v*60);
     if(over.length){m.value=String(S.maxH||12);wkMsg(over.map(w=>DN[w]).join(", ")+" ya tiene"+(over.length>1?"n":"")+" más de "+v+" h en bloques. Acórtalos primero.",true);return}
@@ -626,7 +630,7 @@ function render(){
   const byS=a=>a.sort((x,y)=>(plan[x.id].o-plan[y.id].o)||(plan[x.id].s-plan[y.id].s));
   const hoy=byS(open.filter(t=>plan[t.id].o===0)),cola=open.filter(t=>plan[t.id].o<0);
   const from=S.from==null?nowM():toM(S.from);
-  const capHoy=S.week[wd(0)].reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
+  const capHoy=BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
   const empty=(t,z)=>{const p=document.createElement("p");p.className="note dropz";p.innerHTML=t;L.appendChild(p);zoneDrop(p,z)};
   const foot=(t,z)=>{const p=document.createElement("div");p.className="sum";p.innerHTML=t;L.appendChild(p);zoneDrop(p,z)};
   lastSec={hoy:hoy.map(t=>t.id),cola:cola.map(t=>t.id)};
@@ -649,7 +653,7 @@ function render(){
   const rowsWithBlocks=(arr,zone,whenFn)=>{
     calcSep(arr);
     const groups=[];
-    arr.forEach(t=>{const p=plan[t.id],bl=[...S.week[wd(p.o)]].sort((x,y)=>toM(x[0])-toM(y[0]));
+    arr.forEach(t=>{const p=plan[t.id],bl=[...BL(wd(p.o))].sort((x,y)=>toM(x[0])-toM(y[0]));
       let i=bl.findIndex(b=>p.s>=toM(b[0])&&p.s<toM(b[1]));if(i<0)i=bl.findIndex(b=>p.s===toM(b[1]));
       const key=p.o+"-"+i,g=groups[groups.length-1];
       if(g&&g.key===key)g.tasks.push(t);else groups.push({key,o:p.o,i,b:bl[i],tasks:[t]})});
@@ -658,7 +662,7 @@ function render(){
     groups.forEach(g=>{
       if(g.o!==day){day=g.o;box=document.createElement("div");box.className="bgrp day";L.appendChild(box);
         if(zone==="sem"){const h=document.createElement("div");h.className="dayh";h.textContent=DNL[wd(g.o)];box.appendChild(h)}}
-      if(g.b){const st=g.o===0?Math.max(toM(g.b[0]),from):toM(g.b[0]),cap=Math.max(0,toM(g.b[1])-st),used=mm(g.tasks);
+      if(g.b&&!S.noBlk){const st=g.o===0?Math.max(toM(g.b[0]),from):toM(g.b[0]),cap=Math.max(0,toM(g.b[1])-st),used=mm(g.tasks);
         const d=document.createElement("div");d.className="bsep in"+(box.querySelector(".row")?" brk":"");
         d.innerHTML=`<b>Bloque ${g.i+1}</b><span>${ampm(g.b[0])} – ${ampm(g.b[1])}</span><span class="bt${used>=cap?" full":""}">${fmt(used)} h de ${fmt(cap)} h</span>`;
         box.appendChild(d);zoneDrop(d,zone)}
@@ -684,10 +688,10 @@ function render(){
       det.innerHTML=`<summary>Ver semanas anteriores · ${doneOld.length+rpOld.length}</summary>`;det.ontoggle=()=>render.oldOpen=det.open;
       [...doneOld].sort((a,b)=>(b.doneAt||dts(b.doneOn))-(a.doneAt||dts(a.doneOn))).forEach(t=>det.appendChild(taskRow(t,fdOn(t.doneOn)+" ✓")));rpOld.forEach(x=>det.appendChild(respRow(x)));L.appendChild(det)}}
   /* panel: Hoy + dedicación de la semana */
-  const p1=pieBlock("Hoy",noSep(hoy),doneHoy,capDay(wd(0)),`${noSep(hoy).length} pendientes · ${doneHoy.length} hechas`);
+  const p1=pieBlock("Hoy",noSep(hoy),doneHoy,S.noBlk?hoyCapM()+doneHoy.reduce((x,t)=>x+(t.min>0?t.min:0),0):capDay(wd(0)),`${noSep(hoy).length} pendientes · ${doneHoy.length} hechas`);
   $("pies").innerHTML=`<div class="dash">${p1.html}${dashWeek(plan,openR,done,L0)}</div>`;
   {const mn=a=>a.reduce((x,t)=>x+(t.min>0?t.min:0),0),wkD=done.filter(t=>weekIdx(t.doneOn)===0),wm=mn(wkD),p1m=mn(wkD.filter(t=>lv(cat(t.doneCat||t.cat))===1));
-   $("sumLine").innerHTML=`Hoy <b>${fmt(mn(doneHoy))}</b> de ${fmt(capDay(wd(0)))} h · Semana <b>${fmt(wm)} h</b>${wm?` · P1 <b>${Math.round(p1m/wm*100)}%</b>`:""} · ${openR.length} pendientes`}
+   $("sumLine").innerHTML=`Hoy <b>${fmt(mn(doneHoy))}</b> de ${fmt(S.noBlk?hoyCapM()+mn(doneHoy):capDay(wd(0)))} h · Semana <b>${fmt(wm)} h</b>${wm?` · P1 <b>${Math.round(p1m/wm*100)}%</b>`:""} · ${openR.length} pendientes`}
   const seen=new Map();p1.segs.forEach(x=>seen.set(x.n,x.c));
   $("legend").innerHTML='<span style="font-weight:600">Hoy:</span>'+[...seen].map(([n,c])=>`<span><i style="background:${c}"></i>${esc(n)}</span>`).join("")+'<span><i style="background:var(--free)"></i>Libre</span>';
   $("from").value=S.from==null?hm(nowM()):S.from;
@@ -1121,6 +1125,9 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!GE.hidden)GE.hidde
 {let rt,lastW=GDW();addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(GDW()!==lastW){lastW=GDW();renderGantt()}},200)})}
 function renderWeek(){
   const W=$("week");W.innerHTML="";
+  const md=$("blkMode");if(md){md.querySelectorAll("button").forEach(b=>{const on=(b.dataset.m==="no")===!!S.noBlk;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on)});
+    $("blkNote").textContent=S.noBlk?"Sin bloques: Hoy usa todo el tiempo desde la hora actual hasta la medianoche. Tus bloques quedan guardados por si vuelves a usarlos.":"Con bloques: las tareas de Hoy encajan en los horarios de abajo; lo que no cabe baja a Cola."}
+  W.classList.toggle("off",!!S.noBlk);
   [1,2,3,4,5,6,0].forEach(w=>{const C=capDay(w),r=document.createElement("div");r.className="wd"+(w===wd(0)?" today":"");
     r.innerHTML=`<b>${DN[w]}</b><div class="chips"></div><span class="cap">${fmt(C)} h</span>`;
     const ch=r.querySelector(".chips");

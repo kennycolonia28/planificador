@@ -568,6 +568,11 @@ details.synth .sg{margin-top:14px}
 .sepw .sepm{visibility:hidden}
 .sepw input{width:100%;border:none;background:transparent;color:var(--muted);text-align:center;border-radius:5px;outline:none}
 .sepw input::placeholder{color:var(--muted);opacity:.6}
+.blkm{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:2px 0 10px}
+.blkm .seg{display:inline-flex;background:var(--bg,#f1f3f6);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+.blkm .seg button{border:none;background:transparent;padding:6px 12px;border-radius:7px;font:600 13px var(--body);color:var(--muted);cursor:pointer}
+.blkm .seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.week.off{opacity:.45}
 .sept{flex:none;margin:0 10px 0 -8px;font:600 12px var(--body);letter-spacing:.04em;color:var(--muted);white-space:nowrap}
 .sept::before{content:"("}.sept::after{content:")"}
 .sepw input:focus{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--accent) 45%,transparent)}
@@ -839,6 +844,7 @@ details.synth .sg{margin-top:14px}
   </section>
   <section class="panel lp" aria-label="Bloques de trabajo">
     <div class="head"><h2>Bloques de trabajo <span class="wtot" id="wkTot"></span></h2><label class="note maxw">Máximo por día <select id="maxH" aria-label="Máximo de horas por día"></select></label></div>
+    <div class="blkm"><span class="seg" id="blkMode" role="group" aria-label="Cómo se arma Hoy"><button type="button" data-m="si">Con bloques</button><button type="button" data-m="no">Sin bloques (hasta medianoche)</button></span><span class="note" id="blkNote"></span></div>
     <div class="week" id="week"></div>
     <p class="note">Toca una hora para cambiarla y confirma con <b>Guardar</b>. <span id="wkMsg" role="status" style="font-weight:500"></span></p>
   </section>
