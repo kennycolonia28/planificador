@@ -210,6 +210,10 @@ const ZN={hoy:"Hoy",cola:"Cola"};
 function moveTo(id,zone,beforeId,quiet){
   const t=S.tasks.find(x=>x.id===id);if(!t||t.done)return false;
   const curZone=Object.keys(lastSec).find(z=>lastSec[z].includes(id));
+  /* un separador arrastra su grupo: las tareas que tiene debajo, hasta el siguiente separador */
+  if(t.sep&&curZone){const L=lastSec[curZone],k=L.indexOf(id),grp=[id];
+    for(let i=k+1;i<L.length;i++){const x=S.tasks.find(y=>y.id===L[i]);if(!x||x.sep)break;grp.push(L[i])}
+    if(grp.length>1)return moveGroup(grp,curZone,zone,beforeId,quiet)}
   /* subir a Hoy algo que no cabe: no se mueve y sale la alerta */
   if(zone==="hoy"&&curZone!=="hoy"&&!t.sep&&(t.min|0)>0){
     const pin0=t.pin,arr=S.tasks.filter(x=>x!==t);t.pin=dk(0);
@@ -231,6 +235,37 @@ function moveTo(id,zone,beforeId,quiet){
   commit();
   const z=ZN[zone];
   if(!quiet)flash(zone===curZone?"Orden actualizado.":`Movida a ${z}: ${t.sep?"separador":plain(t.text)}`);
+  return true
+}
+function moveGroup(grp,curZone,zone,beforeId,quiet){
+  if(beforeId&&grp.includes(beforeId))return false;
+  /* el grupo siempre cae en el borde entre grupos, para no "absorber" tareas de otro grupo:
+     soltado sobre una tarea, se coloca antes del separador de esa tarea; si esa tarea no tiene separador arriba, después de las tareas sueltas */
+  if(beforeId){const T=S.tasks.find(x=>x.id===beforeId);
+    if(T&&!T.sep){const L=lastSec[zone]||[],k=L.indexOf(beforeId);let snap;
+      for(let i=k-1;i>=0;i--){const x=S.tasks.find(y=>y.id===L[i]);if(x&&x.sep&&!grp.includes(x.id)){snap=x.id;break}}
+      if(snap===undefined){snap=null;for(let i=k+1;i<L.length;i++){const x=S.tasks.find(y=>y.id===L[i]);if(x&&x.sep&&!grp.includes(x.id)){snap=x.id;break}}}
+      beforeId=snap}}
+  const items=grp.map(id=>S.tasks.find(x=>x.id===id)).filter(Boolean),head=items[0];
+  /* insertar el grupo en una lista de prueba y devolver el índice */
+  const place=arr=>{let at=beforeId?arr.findIndex(x=>x.id===beforeId):-1;
+    if(at<0){const order=["hoy","cola"],k=order.indexOf(zone),mine=lastSec[zone].filter(x=>!grp.includes(x));
+      if(mine.length)at=arr.findIndex(x=>x.id===mine[mine.length-1])+1;
+      else{const later=order.slice(k+1).flatMap(z=>lastSec[z]).filter(x=>!grp.includes(x));at=later.length?arr.findIndex(x=>x.id===later[0]):arr.length}}
+    return at<0?arr.length:at};
+  /* a Hoy: el grupo completo tiene que caber */
+  if(zone==="hoy"&&curZone!=="hoy"){
+    const pins=items.map(x=>x.pin),arr=S.tasks.filter(x=>!grp.includes(x.id));items.forEach(x=>x.pin=dk(0));
+    arr.splice(place(arr),0,...items);const out=hoyOverflow(arr).filter(x=>grp.includes(x.id));items.forEach((x,i)=>x.pin=pins[i]);
+    if(out.length){if(!quiet){const need=items.reduce((a,x)=>a+(x.sep?0:Math.max(0,x.min|0)),0),free=hoyFree();
+        askInfo("No hay tiempo para hoy",`El grupo «${esc(plain(head.text||"separador"))}» necesita <b>${fmt(need)} h</b> y hoy ${free>0?`quedan libres <b>${fmt(free)} h</b>`:"ya no queda tiempo libre"}. Libera tiempo en Hoy o mueve las tareas por separado.`)}
+      return false}}
+  if(zone!==curZone)items.forEach(x=>setPin(x,zone));
+  delete secMode[zone];if(curZone)delete secMode[curZone];S.sortUI={m:secMode,d:sortDir};
+  S.tasks=S.tasks.filter(x=>!grp.includes(x.id));
+  S.tasks.splice(place(S.tasks),0,...items);
+  commit();
+  if(!quiet)flash(zone===curZone?`Grupo movido (${items.length-1} tareas).`:`Grupo movido a ${ZN[zone]}: ${plain(head.text||"separador")} + ${items.length-1} tareas`);
   return true
 }
 /* sube a Hoy, en el orden de Cola, las tareas que quepan en el tiempo libre que queda hoy (se salta las que no caben y sigue con las más cortas) */
@@ -369,7 +404,7 @@ function sepRow(t,zone){
   if(S.view)d.hidden=true;
   const tot=sepTot[t.id]||0;
   d.innerHTML=`<span class="grip" title="Arrastrar" aria-hidden="true">⋮⋮</span><hr>${sepLabel(t)}${tot?`<span class="sept" title="Tiempo de las tareas de este tramo (hasta el siguiente separador)">${durMin(tot)}</span>`:""}<hr><span class="sepact">${zone==="hoy"?`<button type="button" class="uph dwn" title="Bajar este separador a Cola">↓ Cola</button>`:`<button type="button" class="uph" title="Subir este separador a Hoy">↑ Hoy</button>`}<button class="x" aria-label="Borrar separador" title="Borrar separador">×</button></span>`;
-  d.querySelector(".uph").onclick=()=>zone==="hoy"?moveTo(t.id,"cola",lastSec.cola[0]||null):moveTo(t.id,"hoy",null);
+  d.querySelector(".uph").onclick=()=>moveTo(t.id,zone==="hoy"?"cola":"hoy",null);
   d.querySelector(".x").onclick=()=>{S.tasks=S.tasks.filter(x=>x.id!==t.id);commit();flashU("Separador borrado.")};wireSepLabel(d,t);
   d.querySelector(".grip").addEventListener("mousedown",()=>d.draggable=true);
   d.addEventListener("dragstart",e=>{dragId=t.id;d.classList.add("drag");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("application/x-tarea",t.id)}catch(err){}});
