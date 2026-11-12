@@ -8,7 +8,7 @@
 (function () {
   "use strict";
   /* versión de la app: súbela (aquí y en /version.json) cada vez que publiques un cambio */
-  const APP_V = 5;
+  const APP_V = 6;
   const PUSH_DELAY = 900, PULL_EVERY = 30_000, VERSION_EVERY = 5 * 60_000;
 
   const $ = id => document.getElementById(id);
