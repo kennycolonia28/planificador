@@ -365,7 +365,7 @@ function taskRow(t,when,zone){
   const c=cat(t.cat),d=document.createElement("div");
   d.className="row"+(t.done?" done":"")+(!t.done&&!(t.min>0)?" notime":"");
   /* "Altura por tiempo": hasta 30 min tamaño normal; desde ahí crece proporcional a los minutos, sin tope */
-  if(S.tall&&!t.done&&t.min>30){d.classList.add("tall");d.style.setProperty("--h",Math.round(24*t.min/30)+"px")}
+  if(S.tall&&!t.done&&t.min>30){d.classList.add("tall");d.style.setProperty("--h",Math.round(24*t.min/30)+"px");d.style.setProperty("--rc",c.color)}
   if(!t.done&&S.view&&(S.view==="none"?!!tagOf(t.tag):t.tag!==S.view))d.hidden=true;
   d.innerHTML=`<span class="grip" title="Arrastrar" aria-hidden="true">⋮⋮</span>
   <button class="dn" title="${t.done?"Volver a pendiente":"Marcar como hecha"}" aria-label="${t.done?"Volver a pendiente":"Marcar como hecha"}">✓</button>
@@ -486,7 +486,7 @@ function sortMenu(btn,zone){
 function secHead(L,txt,zone,cls){
   const s=document.createElement("div");s.className="sep sx"+(cls?" "+cls:"");
   const m=SORTS.find(x=>x[0]===secMode[zone]);
-  s.innerHTML=`<span>${txt}</span><span class="ln"></span><button type="button" class="addsep" title="Agregar una línea separadora arriba de esta sección">+ separador</button>${zone==="hoy"?`<button type="button" class="sbt tallb${S.tall?" on":""}" aria-pressed="${!!S.tall}" title="Las tareas se ven más altas según su tiempo">Altura por tiempo: ${S.tall?"Sí":"No"}</button>`:""}<button type="button" class="sbt" title="Ordenar esta sección">Ordenar${m?": "+m[2]+(sortDir[zone]===1?" ↓":" ↑"):""} ▾</button>`;
+  s.innerHTML=`<span>${txt}</span><span class="ln"></span><button type="button" class="addsep" title="Agregar una línea separadora arriba de esta sección">+ separador</button>${zone==="hoy"?`<button type="button" class="sbt tallb${S.tall?" on":""}" aria-pressed="${!!S.tall}" title="Las tareas se ven más altas según su tiempo">Altura<span class="lgx"> por tiempo</span>: ${S.tall?"Sí":"No"}</button>`:""}<button type="button" class="sbt" title="Ordenar esta sección">Ordenar${m?": "+m[2]+(sortDir[zone]===1?" ↓":" ↑"):""} ▾</button>`;
   s.querySelector(".sbt").onclick=e=>sortMenu(e.currentTarget,zone);
   s.querySelector(".addsep").onclick=()=>addSep(zone);
   const tb=s.querySelector(".tallb");if(tb)tb.onclick=()=>{S.tall=!S.tall;commit()};

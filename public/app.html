@@ -105,6 +105,16 @@ details.old[open] summary::before{content:"▾ "}
 .row.tall{min-height:calc(var(--h) + 8px);align-items:center}
 .row.tall .cs,.row.tall .cs:hover,.row.tall .cs:focus{height:var(--h)}
 .sbt.tallb.on{background:var(--soft);color:var(--ink);border-color:var(--accent)}
+/* celular: la etiqueta queda normal y crece la fila completa, con barra y fondo suave del color de la categoría */
+@media (max-width:760px){
+  .row.tall{min-height:calc(var(--h) + 34px);align-content:start;box-shadow:inset 4px 0 0 var(--rc);background:color-mix(in srgb,var(--rc) 9%,transparent);padding-left:8px}
+  .row.tall .cs,.row.tall .cs:hover,.row.tall .cs:focus{height:auto}
+  .sep.sx .tallb{font-size:10px;padding:3px 6px}
+  .sep.sx .tallb .lgx{display:none}
+  .sep.sx:has(.tallb)>span:first-child{flex-basis:100%}
+  .sep.sx .tallb{margin-left:auto!important}
+  .sep.sx .tallb + .sbt{margin-left:6px!important}
+}
 .row .mins{text-align:right;font:500 13px var(--mono);padding-right:2px}
 .dn{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--muted);background:none;padding:0;font-size:11px;line-height:1;color:transparent}
 .dn:hover{border-color:var(--ok);color:var(--ok)}
