@@ -276,6 +276,8 @@ function fillHoy(){
   let used=lastSec.hoy.reduce((a,id)=>a+mins(id),0),n=0;
   [...lastSec.cola].forEach(id=>{const m=mins(id);if(!(m>0)||used+m>cap)return;if(moveTo(id,"hoy",null,true)){used+=m;n++}});
   flash(n?`Subí ${n} tarea${n===1?"":"s"} a Hoy (lo que cabe en tu tiempo libre).`:"No cabe ninguna tarea de Cola en el tiempo libre de hoy (las que no tienen minutos no se suben solas).")}
+document.addEventListener("dragstart",()=>{if(dragId)document.body.classList.add("dragging")});
+["dragend","drop"].forEach(ev=>document.addEventListener(ev,()=>setTimeout(()=>{if(!dragId)document.body.classList.remove("dragging")},0)));
 function zoneDrop(el,zone){
   el.dataset.zone=zone;
   el.addEventListener("dragover",e=>{if(dragId){e.preventDefault();el.classList.add("zover")}});
@@ -702,12 +704,15 @@ function render(){
         d.innerHTML=`<b>Bloque ${g.i+1}</b><span>${ampm(g.b[0])} – ${ampm(g.b[1])}</span><span class="bt${used>=cap?" full":""}">${fmt(used)} h de ${fmt(cap)} h</span>`;
         box.appendChild(d);zoneDrop(d,zone)}
       g.tasks.forEach(t=>box.appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone)))})};
+  /* franja "soltar al final": aparece solo mientras arrastras */
+  const endZ=(box,z)=>{const e=document.createElement("div");e.className="endz";e.textContent="Soltar aquí para dejarlo al final";box.appendChild(e);zoneDrop(e,z)};
   secHead(L,`Hoy · ${DNL[wd(0)]} · desde ${hm(from)}`,"hoy");rowsWithBlocks(hoy,"hoy",t=>hr(t));
+  {const hb=L.querySelectorAll(".bgrp.day");if(hoy.length&&hb.length)endZ(hb[hb.length-1],"hoy")}
   if(!hoy.length)empty("Nada en Hoy. Arrastra aquí una tarea desde Cola (o usa el botón de la tarea → Hoy).","hoy");
   foot(sumLine(hoy,capHoy),"hoy");
   const shC=secHead(L,`Cola`,"cola","wait");if(cola.length){const fb=document.createElement("button");fb.type="button";fb.className="sbt";fb.textContent="Llenar Hoy ↑";fb.title="Sube a Hoy las tareas de Cola que quepan en el tiempo libre de hoy";fb.onclick=fillHoy;shC.insertBefore(fb,shC.querySelector(".sbt"));}
   calcSep(cola);
-  if(cola.length){const box=document.createElement("div");box.className="bgrp cq";cola.forEach(t=>box.appendChild(t.sep?sepRow(t,"cola"):taskRow(t,"cola","cola")));L.appendChild(box)}
+  if(cola.length){const box=document.createElement("div");box.className="bgrp cq";cola.forEach(t=>box.appendChild(t.sep?sepRow(t,"cola"):taskRow(t,"cola","cola")));endZ(box,"cola");L.appendChild(box)}
   if(!cola.length)empty("La cola está vacía. Aquí esperan las tareas que bajas de Hoy.","cola");
   foot(`${noT(cola)}${noSep(cola).length} tareas · <b>${tm(cola)} h</b>`,"cola");
   const doneThis=done.filter(t=>weekIdx(t.doneOn)===0),doneOld=done.filter(t=>weekIdx(t.doneOn)!==0);
