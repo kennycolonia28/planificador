@@ -167,7 +167,16 @@ details.old[open] summary::before{content:"▾ "}
 .hpart i{font:500 11px var(--mono);font-style:normal;color:var(--muted)}
 .hpart span{margin-left:auto;font:600 11px var(--mono);color:var(--muted)}
 .hpart[data-p=m] b{color:#B7791F}.hpart[data-p=t] b{color:#C05621}.hpart[data-p=n] b{color:#4C51BF}
-@media (max-width:760px){.hpart{padding-left:4px;margin-top:10px}}
+/* Hoy en tarjetas: Mañana, Tarde y Noche separadas */
+.bgrp.day.parts{background:none;border:none;box-shadow:none;padding:0;margin:8px 0 0}
+.pcard{position:relative;border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:4px 10px 10px;margin:0 0 14px;box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden}
+.pcard::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--pc)}
+.pcard[data-p=m]{--pc:#E0A23A}.pcard[data-p=t]{--pc:#DD6B20}.pcard[data-p=n]{--pc:#5A67D8}
+.pcard .hpart{margin:8px 0 6px;padding:0 2px 8px 24px;border-bottom:1px solid color-mix(in srgb,var(--pc) 22%,var(--line))}
+.pcard .hpart b{color:color-mix(in srgb,var(--pc) 75%,var(--ink))}
+.pcard .hpart span{background:color-mix(in srgb,var(--pc) 12%,transparent);color:color-mix(in srgb,var(--pc) 70%,var(--ink));padding:2px 8px;border-radius:999px}
+.pcard .bsep{margin-top:6px}
+@media (max-width:760px){.hpart{padding-left:4px;margin-top:10px}.pcard{padding:2px 8px 8px;border-radius:14px}.pcard .hpart{padding-left:4px}}
 .row.notime .mins{outline:1.5px solid var(--hot);outline-offset:-1px;border-radius:5px;background:color-mix(in srgb,var(--hot) 8%,transparent)}
 .row.notime .mins::placeholder{color:var(--hot);font-weight:600}
 .warn{color:var(--hot);font-weight:600;margin-right:10px}

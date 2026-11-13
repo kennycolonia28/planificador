@@ -749,24 +749,31 @@ function render(){
     /* Hoy: títulos Mañana / Tarde / Noche según la hora calculada de cada tarea */
     const pMin={m:0,t:0,n:0};if(zone==="hoy")arr.forEach(t=>{const p=plan[t.id];if(p&&p.o===0&&!t.sep)pMin[partOf(p.s)]+=Math.max(0,t.min|0)});
     let lastPt=null;
-    const ptHead=(box,pt)=>{const d=document.createElement("div");d.className="hpart";d.dataset.p=pt;
-      d.innerHTML=`<b>${RTPN[pt]}</b><i>${RTPH[pt]}</i><span>${durMin(pMin[pt])}</span>`;box.appendChild(d)};
+    /* cada momento del día es su propia tarjeta redondeada, con su título y total */
+    let card=null;
+    const ptCard=(box,pt)=>{lastPt=pt;box.classList.add("parts");card=document.createElement("div");card.className="pcard";card.dataset.p=pt;
+      const d=document.createElement("div");d.className="hpart";d.dataset.p=pt;
+      d.innerHTML=`<b>${RTPN[pt]}</b><i>${RTPH[pt]}</i><span>${durMin(pMin[pt])}</span>`;card.appendChild(d);box.appendChild(card)};
+    const hoyPt=t=>partOf(plan[t.id].s);
     /* un solo recuadro por día; dentro, una línea separa cada bloque */
     let box=null,day=null;
     groups.forEach(g=>{
       if(g.o!==day){day=g.o;box=document.createElement("div");box.className="bgrp day";L.appendChild(box);
         if(zone==="sem"){const h=document.createElement("div");h.className="dayh";h.textContent=DNL[wd(g.o)];box.appendChild(h)}}
+      const today=zone==="hoy"&&g.o===0;
+      if(today){card=null;const f=g.tasks.find(t=>!t.sep||pMin[hoyPt(t)])||g.tasks[0];const pt=hoyPt(f);if(pt!==lastPt||!card)ptCard(box,pt)}
+      const tgt=()=>today&&card?card:box;
       if(g.b&&!S.noBlk){const st=g.o===0?Math.max(toM(g.b[0]),from):toM(g.b[0]),cap=Math.max(0,toM(g.b[1])-st),used=mm(g.tasks);
-        const d=document.createElement("div");d.className="bsep in"+(box.querySelector(".row")?" brk":"");
+        const d=document.createElement("div");d.className="bsep in"+(tgt().querySelector(".row")?" brk":"");
         d.innerHTML=`<b>Bloque ${g.i+1}</b><span>${ampm(g.b[0])} – ${ampm(g.b[1])}</span><span class="bt${used>=cap?" full":""}">${fmt(used)} h de ${fmt(cap)} h</span>`;
-        box.appendChild(d);zoneDrop(d,zone)}
+        tgt().appendChild(d);zoneDrop(d,zone)}
       g.tasks.forEach(t=>{
-        if(zone==="hoy"&&g.o===0){const pt=partOf(plan[t.id].s);if(pt!==lastPt&&!(t.sep&&!pMin[pt])){lastPt=pt;ptHead(box,pt)}}
-        box.appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone))})})};
+        if(today){const pt=hoyPt(t);if(pt!==lastPt&&!(t.sep&&!pMin[pt]))ptCard(box,pt)}
+        tgt().appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone))})})};
   /* franja "soltar al final": aparece solo mientras arrastras */
   const endZ=(box,z)=>{const e=document.createElement("div");e.className="endz";e.textContent="Soltar aquí para dejarlo al final";box.appendChild(e);zoneDrop(e,z)};
   secHead(L,`Hoy · ${DNL[wd(0)]} · desde ${hm(from)}`,"hoy");rowsWithBlocks(hoy,"hoy",t=>hr(t));
-  {const hb=L.querySelectorAll(".bgrp.day");if(hoy.length&&hb.length)endZ(hb[hb.length-1],"hoy")}
+  {const hb=L.querySelectorAll(".bgrp.day .pcard, .bgrp.day:not(.parts)");if(hoy.length&&hb.length)endZ(hb[hb.length-1],"hoy")}
   if(!hoy.length)empty("Nada en Hoy. Arrastra aquí una tarea desde Cola (o usa el botón de la tarea → Hoy).","hoy");
   foot(sumLine(hoy,capHoy),"hoy");
   const shC=secHead(L,`Cola`,"cola","wait");if(cola.length){const fb=document.createElement("button");fb.type="button";fb.className="sbt";fb.textContent="Llenar Hoy ↑";fb.title="Sube a Hoy las tareas de Cola que quepan en el tiempo libre de hoy";fb.onclick=fillHoy;shC.insertBefore(fb,shC.querySelector(".sbt"));}
