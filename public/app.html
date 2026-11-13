@@ -555,6 +555,14 @@ details.synth .sg{margin-top:14px}
 .dc{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:600 11px var(--body);padding:0;line-height:1}
 .dc.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .rtpre{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:4px 4px 2px;font-size:12px;color:var(--muted)}
+.rtpre .rtsp{width:10px}
+.rtps{display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px;background:var(--surface)}
+.rtps button{border:none;background:transparent;padding:4px 10px;border-radius:6px;font:600 12px var(--body);color:var(--muted);cursor:pointer}
+.rtps button.on{background:var(--accent);color:var(--accent-ink)}
+.rtpart{display:flex;align-items:baseline;gap:10px;margin:10px 4px 4px;padding:0 0 4px;border-bottom:1px solid color-mix(in srgb,#2BB38A 30%,var(--line));font-size:11px;color:var(--muted)}
+.rtpart:first-of-type{margin-top:4px}
+.rtpart b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#1F7A5C}
+.rtpart.ov{background:color-mix(in srgb,var(--accent) 10%,transparent);border-bottom-color:var(--accent)}
 @media (max-width:640px){
   .rtbox{padding:2px 8px 4px}
   .rtedit{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"cs x" "tx mn" "dc dc";row-gap:6px;padding:6px 2px;border-bottom:1px solid color-mix(in srgb,#2BB38A 22%,var(--line))}

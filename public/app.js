@@ -599,8 +599,13 @@ $("blkMode").onclick=e=>{const b=e.target.closest("button[data-m]");if(!b)return
     saveN();flash("Formato limpio: queda solo el texto.")};
 })();
 /* ===== RUTINAS: una línea que se despliega; cada día que tocan crean sola una tarea en HOY (se tacha al hacerla y al día siguiente vuelve a salir) ===== */
+/* momentos del día: las rutinas se agrupan en Mañana, Tarde y Noche (y salen en Hoy en ese orden) */
+let rtNeedReord=false;
+const RTP=["m","t","n"],RTPN={m:"Mañana",t:"Tarde",n:"Noche"};
+const rtGuess=t=>/almor|almuer|lunch|comer\b|comida/i.test(t||"")?"t":/cen(a|ar)\b|descon|noche|dormir|acostar/i.test(t||"")?"n":"m";
+const rtSort=R=>{const k=new Map(R.map((r,i)=>[r,i]));R.sort((a,b)=>RTP.indexOf(a.part)-RTP.indexOf(b.part)||k.get(a)-k.get(b))};
 const RTL=["L","M","X","J","V","S","D"],RTD=[1,2,3,4,5,6,0],RTN=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
-function ensureRt(st){if(!Array.isArray(st.routines))st.routines=[];st.routines.forEach(r=>{if(!Array.isArray(r.days)||!r.days.length)r.days=[0,1,2,3,4,5,6];if(typeof r.min!=="number"||!(r.min>0))r.min=15;delete r.log})}
+function ensureRt(st){if(!Array.isArray(st.routines))st.routines=[];st.routines.forEach(r=>{if(!Array.isArray(r.days)||!r.days.length)r.days=[0,1,2,3,4,5,6];if(typeof r.min!=="number"||!(r.min>0))r.min=15;delete r.log;if(!RTP.includes(r.part)){r.part=rtGuess(r.text);rtNeedReord=true}});rtSort(st.routines)}
 ensureRt(S);
 const rtDue=(r,o=0)=>r.days.includes(wd(o));
 const rtFreq=r=>{const d=[...r.days].sort((a,b)=>a-b),k=d.join("");return d.length===7?"Diaria":k==="12345"?"L–V":k==="06"?"Fin de semana":RTD.filter(x=>d.includes(x)).map(x=>RTL[RTD.indexOf(x)]).join(" ")};
@@ -617,10 +622,10 @@ function spawnRoutines(){
   if(ch)save()}
 /* si cambias una rutina, la tarea de hoy que aún no hiciste se actualiza igual */
 /* orden de las rutinas: mueve la rutina y reordena también las de hoy aún sin hacer, en sus mismos lugares (las demás tareas no se mueven) */
-function rtMove(id,toIdx){const R=S.routines,i=R.findIndex(x=>x.id===id);if(i<0)return;const [r]=R.splice(i,1);R.splice(Math.max(0,Math.min(toIdx,R.length)),0,r);
-  const today=dk(),pos=[],its=[];S.tasks.forEach((t,k)=>{if(t.rt&&!t.done&&t.rtDay===today){pos.push(k);its.push(t)}});
-  const ord=id=>{const k=R.findIndex(x=>x.id===id);return k<0?1e9:k};its.sort((a,b)=>ord(a.rt)-ord(b.rt));pos.forEach((k,j)=>S.tasks[k]=its[j]);
-  commit()}
+function rtMove(id,toIdx,part){const R=S.routines,i=R.findIndex(x=>x.id===id);if(i<0)return;const [r]=R.splice(i,1);if(part)r.part=part;R.splice(Math.max(0,Math.min(toIdx,R.length)),0,r);rtSort(R);
+  rtReordToday();commit()}
+function rtReordToday(){const R=S.routines,today=dk(),pos=[],its=[];S.tasks.forEach((t,k)=>{if(t.rt&&!t.done&&t.rtDay===today){pos.push(k);its.push(t)}});
+  const ord=id=>{const k=R.findIndex(x=>x.id===id);return k<0?1e9:k};its.sort((a,b)=>ord(a.rt)-ord(b.rt));pos.forEach((k,j)=>S.tasks[k]=its[j])}
 let rtDrag=null;
 const rtSync=r=>S.tasks.forEach(t=>{if(t.rt===r.id&&!t.done){t.text=r.text;t.cat=r.cat;t.min=r.min}});
 const rtChips=days=>RTD.map((d,i)=>`<button type="button" class="dc${days.includes(d)?" on":""}" data-d="${d}" title="${RTN[i]}" aria-label="${RTN[i]}" aria-pressed="${days.includes(d)}">${RTL[i]}</button>`).join("");
@@ -632,7 +637,19 @@ function rutinasBlock(L){
   const box=document.createElement("details");box.className="rtbox";box.open=!!render.rtOpen;box.ontoggle=()=>render.rtOpen=box.open;L.appendChild(box);
   const h=document.createElement("summary");h.className="sep "+(all?"ok":"rt");
   h.textContent=`🔁 Rutinas · ${!R.length?"sin rutinas":nDue?`${nDone}/${nDue} hoy${all?" ✓":""}`:"hoy no toca ninguna"}`;box.appendChild(h);
-  R.forEach(r=>{
+  /* cabecera de cada momento: muestra cuántas y cuánto tiempo; también sirve para soltar una rutina ahí */
+  const partHead=pt=>{const L=R.filter(r=>r.part===pt),due=L.filter(r=>rtDue(r)),mins=due.reduce((a,r)=>a+r.min,0);
+    const hd=document.createElement("div");hd.className="rtpart";hd.dataset.p=pt;
+    hd.innerHTML=`<b>${RTPN[pt]}</b><span>${L.length?`${L.length} rutina${L.length>1?"s":""}${due.length?` · hoy ${durMin(mins)}`:""}`:"Arrastra aquí una rutina"}</span>`;
+    hd.addEventListener("dragover",ev=>{if(!rtDrag)return;ev.preventDefault();hd.classList.add("ov")});
+    hd.addEventListener("dragleave",()=>hd.classList.remove("ov"));
+    hd.addEventListener("drop",ev=>{if(!rtDrag)return;ev.preventDefault();hd.classList.remove("ov");const id=rtDrag;rtDrag=null;
+      const first=R.findIndex(x=>x.part===pt&&x.id!==id),from=R.findIndex(x=>x.id===id);let to=first<0?R.length:first;if(first>=0&&from<first)to--;rtMove(id,to,pt)});
+    box.appendChild(hd)};
+  let curPt=null;
+  if(!R.length)RTP.forEach(partHead);
+  R.forEach((r,ri)=>{
+    if(r.part!==curPt){const a=RTP.indexOf(curPt),b=RTP.indexOf(r.part);for(let k=a+1;k<=b;k++)partHead(RTP[k]);curPt=r.part}
     const back=rtDue(r)&&!rtToday(r),e=document.createElement("div");e.className="rtedit";
     e.dataset.id=r.id;
     e.innerHTML=`<span class="grip" title="Arrastrar para ordenar" aria-hidden="true">⋮⋮</span><select aria-label="Categoría">${catOpts(r.cat)}</select><input class="rttx" value="${esc(r.text)}" aria-label="Rutina"><input class="rtmn" type="number" min="5" step="5" value="${r.min}" aria-label="Minutos" title="Minutos"><span class="dcs">${rtChips(r.days)}</span><span class="rtact"><button type="button" class="rtmv" data-d="-1" aria-label="Subir rutina" title="Subir">↑</button><button type="button" class="rtmv" data-d="1" aria-label="Bajar rutina" title="Bajar">↓</button>${back?`<button type="button" class="sbt rtback" title="Hoy la quitaste: volver a ponerla en Hoy">↺ a Hoy</button>`:""}<button type="button" class="x" aria-label="Borrar rutina" title="Borrar rutina">×</button></span>`;
@@ -642,42 +659,47 @@ function rutinasBlock(L){
     e.querySelector(".dcs").onclick=ev=>{const b=ev.target.closest(".dc");if(!b)return;const d=+b.dataset.d,i=r.days.indexOf(d);
       if(i>=0){if(r.days.length===1){flash("Una rutina necesita al menos un día.");return}r.days.splice(i,1)}else r.days.push(d);commit()};
     /* ordenar: arrastrando desde ⋮⋮ (computadora) o con ↑ ↓ (celular) */
-    e.querySelectorAll(".rtmv").forEach(b=>b.onclick=()=>{const i=S.routines.indexOf(r);rtMove(r.id,i+(+b.dataset.d))});
+    /* ↑ ↓: dentro de su momento cambia de lugar; en el borde pasa al momento de al lado */
+    e.querySelectorAll(".rtmv").forEach(b=>b.onclick=()=>{const d=+b.dataset.d,R=S.routines,i=R.indexOf(r),nb=R[i+d],pi=RTP.indexOf(r.part);
+      if(nb&&nb.part===r.part)return rtMove(r.id,i+d);
+      const np=RTP[pi+d];if(!np)return;r.part=np;rtSort(R);rtReordToday();commit();flash(`«${r.text}» pasó a ${RTPN[np]}`)});
     e.querySelector(".grip").addEventListener("mousedown",()=>e.draggable=true);
     e.addEventListener("dragstart",ev=>{rtDrag=r.id;e.classList.add("drag");ev.dataTransfer.effectAllowed="move";try{ev.dataTransfer.setData("text/plain",r.id)}catch(_){}});
     e.addEventListener("dragend",()=>{rtDrag=null;e.draggable=false;e.classList.remove("drag");box.querySelectorAll(".rtedit").forEach(x=>x.classList.remove("ovt","ovb"))});
     e.addEventListener("dragover",ev=>{if(!rtDrag||rtDrag===r.id)return;ev.preventDefault();const b=e.getBoundingClientRect(),low=ev.clientY>b.top+b.height/2;e.classList.toggle("ovb",low);e.classList.toggle("ovt",!low)});
     e.addEventListener("dragleave",()=>e.classList.remove("ovt","ovb"));
     e.addEventListener("drop",ev=>{if(!rtDrag||rtDrag===r.id)return;ev.preventDefault();const low=e.classList.contains("ovb"),id=rtDrag;rtDrag=null;
-      const R=S.routines,from=R.findIndex(x=>x.id===id);let to=R.indexOf(r)+(low?1:0);if(from<to)to--;if(to!==from)rtMove(id,to)});
+      const R=S.routines,from=R.findIndex(x=>x.id===id),mv=R[from];let to=R.indexOf(r)+(low?1:0);if(from<to)to--;if(to!==from||mv.part!==r.part)rtMove(id,to,r.part)});
     const bk=e.querySelector(".rtback");if(bk)bk.onclick=()=>{rtMake(r);commit();flash("De vuelta en Hoy: "+r.text)};
     const x=e.querySelector(".x");
     x.onclick=()=>{if(x.dataset.sure){S.routines=S.routines.filter(q=>q.id!==r.id);S.tasks=S.tasks.filter(t=>!(t.rt===r.id&&!t.done));commit()}
       else{x.dataset.sure="1";x.textContent="¿Borrar?";x.classList.add("sure");setTimeout(()=>{if(x.isConnected){delete x.dataset.sure;x.textContent="×";x.classList.remove("sure")}},3000)}};
-    box.appendChild(e)});
+    box.appendChild(e);
+    if(ri===R.length-1)for(let k=RTP.indexOf(r.part)+1;k<RTP.length;k++)partHead(RTP[k])});
   const nd=render.rtNew||(render.rtNew=[0,1,2,3,4,5,6]);
   const defCat=(S.cats.find(c=>/personal/i.test(c.name))||S.cats[0]||{}).id;
   const add=document.createElement("div");add.className="rtadd";
   add.innerHTML=`<div class="rtedit"><select id="rtCat" aria-label="Categoría de la nueva rutina">${catOpts(render.rtCat||defCat)}</select><input id="rtTxt" class="rttx" placeholder="Nueva rutina (ej. Tomar agua)" aria-label="Nueva rutina"><input id="rtMin" class="rtmn" type="number" min="5" step="5" placeholder="min" aria-label="Minutos (obligatorio)" title="Minutos (obligatorio)"><button type="button" class="primary" id="rtAdd">Agregar</button></div>
-    <div class="rtpre"><span>Se repite:</span><span class="dcs" id="rtDays">${rtChips(nd)}</span><button type="button" class="sbt" data-p="all">Todos los días</button><button type="button" class="sbt" data-p="wk">L–V</button></div>`;
+    <div class="rtpre"><span>Momento:</span><span class="seg rtps" id="rtPart">${RTP.map(p=>`<button type="button" data-p="${p}" class="${(render.rtPart||"m")===p?"on":""}">${RTPN[p]}</button>`).join("")}</span><span class="rtsp"></span><span>Se repite:</span><span class="dcs" id="rtDays">${rtChips(nd)}</span><button type="button" class="sbt" data-p="all">Todos los días</button><button type="button" class="sbt" data-p="wk">L–V</button></div>`;
   box.appendChild(add);
   const paint=()=>add.querySelectorAll(".dc").forEach(b=>{const on=nd.includes(+b.dataset.d);b.classList.toggle("on",on);b.setAttribute("aria-pressed",on)});
   add.querySelector("#rtDays").onclick=ev=>{const b=ev.target.closest(".dc");if(!b)return;const d=+b.dataset.d,i=nd.indexOf(d);if(i>=0)nd.splice(i,1);else nd.push(d);paint()};
-  add.querySelectorAll(".sbt").forEach(b=>b.onclick=()=>{nd.length=0;(b.dataset.p==="wk"?[1,2,3,4,5]:[0,1,2,3,4,5,6]).forEach(d=>nd.push(d));paint()});
+  add.querySelector("#rtPart").onclick=ev=>{const b=ev.target.closest("button[data-p]");if(!b)return;render.rtPart=b.dataset.p;add.querySelectorAll("#rtPart button").forEach(x=>x.classList.toggle("on",x===b))};
+  add.querySelectorAll(".rtpre>.sbt").forEach(b=>b.onclick=()=>{nd.length=0;(b.dataset.p==="wk"?[1,2,3,4,5]:[0,1,2,3,4,5,6]).forEach(d=>nd.push(d));paint()});
   add.querySelector("#rtCat").onchange=ev=>render.rtCat=ev.target.value;
   const doAdd=()=>{const v=add.querySelector("#rtTxt").value.trim();
     if(!v){flash("Escribe la rutina antes de agregarla.");return}
     if(!nd.length){flash("Elige al menos un día en que se repite.");return}
     const mn=rtMin(add.querySelector("#rtMin").value);
     if(!mn){rtNeedMin(add.querySelector("#rtMin"));return}
-    S.routines.push({id:uid(),cat:add.querySelector("#rtCat").value,text:v,min:mn,days:[...nd],last:null});
-    render.rtNew=[0,1,2,3,4,5,6];render.rtOpen=true;commit();flash("Rutina agregada: "+v+(rtDue(S.routines[S.routines.length-1])?" (ya está en Hoy)":""))};
+    S.routines.push({id:uid(),cat:add.querySelector("#rtCat").value,text:v,min:mn,days:[...nd],last:null,part:render.rtPart||"m"});rtSort(S.routines);
+    render.rtNew=[0,1,2,3,4,5,6];render.rtOpen=true;commit();{const nr=S.routines.find(x=>x.text===v&&x.days.length===nd.length);flash("Rutina agregada: "+v+(nr&&rtDue(nr)?" (ya está en Hoy)":""))}};
   add.querySelector("#rtAdd").onclick=doAdd;
   add.querySelector("#rtTxt").onkeydown=ev=>{if(ev.key==="Enter"){ev.preventDefault();doAdd()}};
 }
 const ADDF=document.getElementById("addForm");
 function render(){
-  ensureRt(S);spawnRoutines();dropOverflow();
+  ensureRt(S);spawnRoutines();if(rtNeedReord){rtNeedReord=false;rtReordToday();save()}dropOverflow();
   const plan=schedule(),open=S.tasks.filter(t=>!t.done),done=S.tasks.filter(t=>t.done);
   /* la primera vez que una tarea recibe día y hora, se guarda como "programada" (no cambia aunque luego se mueva) */
   let fresh=false;open.forEach(t=>{const p=plan[t.id];if(!t.sep&&!t.plan0&&p&&p.o>=0){const d=new Date();d.setDate(d.getDate()+p.o);d.setHours(0,0,0,0);t.plan0=d.getTime()+p.s*60000;fresh=true}});
