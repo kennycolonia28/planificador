@@ -12,9 +12,9 @@
   "d1_databases": [
     {
       "binding": "DB",
-      // Sin "database_id": al publicar, Cloudflare crea la base sola y la conecta.
-      // Las tablas las crea el servidor la primera vez que se usa.
-      "database_name": "planificador-db"
+      // Base creada en la primera publicación (Storage & databases → D1). Las tablas las crea el servidor.
+      "database_name": "planificador-db",
+      "database_id": "f9238130-a166-4b93-832d-4b733df4288c"
     }
   ],
   "observability": { "enabled": true }
