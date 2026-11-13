@@ -747,7 +747,12 @@ function render(){
       const key=p.o+"-"+i,g=groups[groups.length-1];
       if(g&&g.key===key)g.tasks.push(t);else groups.push({key,o:p.o,i,b:bl[i],tasks:[t]})});
     /* Hoy: títulos Mañana / Tarde / Noche según la hora calculada de cada tarea */
-    const pMin={m:0,t:0,n:0};if(zone==="hoy")arr.forEach(t=>{const p=plan[t.id];if(p&&p.o===0&&!t.sep)pMin[partOf(p.s)]+=Math.max(0,t.min|0)});
+    /* minutos de cada momento: cuenta solo la parte de cada tarea que cae dentro de sus horas (una tarea de 11:30 a 1:30 suma 30 min a la Mañana y 1:30 h a la Tarde) */
+    const PW={m:[0,720],t:[720,1080],n:[1080,1440]};
+    const pMin={m:0,t:0,n:0},pT={m:[],t:[],n:[]};if(zone==="hoy")arr.forEach(t=>{const p=plan[t.id];if(p&&p.o===0){pT[partOf(p.s)].push(t);
+      if(!t.sep)RTP.forEach(k=>{pMin[k]+=Math.max(0,Math.min(p.e,PW[k][1])-Math.max(p.s,PW[k][0]))})}});
+    /* tiempo disponible de cada momento: sus horas dentro de tus bloques, desde la hora actual */
+    const capPt=pt=>BL(wd(0)).reduce((a,b)=>a+Math.max(0,Math.min(toM(b[1]),PW[pt][1])-Math.max(toM(b[0]),from,PW[pt][0])),0);
     let lastPt=null;
     /* cada momento del día es su propia tarjeta redondeada, con su título y total */
     let card=null;
@@ -769,7 +774,9 @@ function render(){
         tgt().appendChild(d);zoneDrop(d,zone)}
       g.tasks.forEach(t=>{
         if(today){const pt=hoyPt(t);if(pt!==lastPt&&!(t.sep&&!pMin[pt]))ptCard(box,pt)}
-        tgt().appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone))})})};
+        tgt().appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone))})});
+    /* resumen al pie de cada tarjeta, igual que el del día: % · tareas · usado de disponible · libre */
+    if(zone==="hoy")L.querySelectorAll(".pcard").forEach(c=>{const pt=c.dataset.p,f=document.createElement("div");f.className="sum psum";const a=pT[pt],cap=capPt(pt),u=pMin[pt];f.innerHTML=`${noT(a)}${mini(u,cap)}${noSep(a).length} tarea${noSep(a).length===1?"":"s"} · <b>${fmt(u)} h</b> de ${fmt(cap)} h · libre ${fmt(Math.max(0,cap-u))} h`;c.appendChild(f)})};
   /* franja "soltar al final": aparece solo mientras arrastras */
   const endZ=(box,z)=>{const e=document.createElement("div");e.className="endz";e.textContent="Soltar aquí para dejarlo al final";box.appendChild(e);zoneDrop(e,z)};
   secHead(L,`Hoy · ${DNL[wd(0)]} · desde ${hm(from)}`,"hoy");rowsWithBlocks(hoy,"hoy",t=>hr(t));
