@@ -601,7 +601,7 @@ $("blkMode").onclick=e=>{const b=e.target.closest("button[data-m]");if(!b)return
 /* ===== RUTINAS: una línea que se despliega; cada día que tocan crean sola una tarea en HOY (se tacha al hacerla y al día siguiente vuelve a salir) ===== */
 /* momentos del día: las rutinas se agrupan en Mañana, Tarde y Noche (y salen en Hoy en ese orden) */
 let rtNeedReord=false;
-const RTP=["m","t","n"],RTPN={m:"Mañana",t:"Tarde",n:"Noche"};
+const RTP=["m","t","n"],RTPN={m:"Mañana",t:"Tarde",n:"Noche"},RTPH={m:"6 a.m. – 12 p.m.",t:"12 p.m. – 6 p.m.",n:"6 p.m. – 12 a.m."};
 const rtGuess=t=>/almor|almuer|lunch|comer\b|comida/i.test(t||"")?"t":/cen(a|ar)\b|descon|noche|dormir|acostar/i.test(t||"")?"n":"m";
 const rtSort=R=>{const k=new Map(R.map((r,i)=>[r,i]));R.sort((a,b)=>RTP.indexOf(a.part)-RTP.indexOf(b.part)||k.get(a)-k.get(b))};
 const RTL=["L","M","X","J","V","S","D"],RTD=[1,2,3,4,5,6,0],RTN=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
@@ -640,7 +640,7 @@ function rutinasBlock(L){
   /* cabecera de cada momento: muestra cuántas y cuánto tiempo; también sirve para soltar una rutina ahí */
   const partHead=pt=>{const L=R.filter(r=>r.part===pt),due=L.filter(r=>rtDue(r)),mins=due.reduce((a,r)=>a+r.min,0);
     const hd=document.createElement("div");hd.className="rtpart";hd.dataset.p=pt;
-    hd.innerHTML=`<b>${RTPN[pt]}</b><span>${L.length?`${L.length} rutina${L.length>1?"s":""}${due.length?` · hoy ${durMin(mins)}`:""}`:"Arrastra aquí una rutina"}</span>`;
+    hd.innerHTML=`<b>${RTPN[pt]}</b><i>${RTPH[pt]}</i><span>${L.length?`${L.length} rutina${L.length>1?"s":""}${due.length?` · hoy ${durMin(mins)}`:""}`:"Arrastra aquí una rutina"}</span>`;
     hd.addEventListener("dragover",ev=>{if(!rtDrag)return;ev.preventDefault();hd.classList.add("ov")});
     hd.addEventListener("dragleave",()=>hd.classList.remove("ov"));
     hd.addEventListener("drop",ev=>{if(!rtDrag)return;ev.preventDefault();hd.classList.remove("ov");const id=rtDrag;rtDrag=null;
@@ -680,7 +680,7 @@ function rutinasBlock(L){
   const defCat=(S.cats.find(c=>/personal/i.test(c.name))||S.cats[0]||{}).id;
   const add=document.createElement("div");add.className="rtadd";
   add.innerHTML=`<div class="rtedit"><select id="rtCat" aria-label="Categoría de la nueva rutina">${catOpts(render.rtCat||defCat)}</select><input id="rtTxt" class="rttx" placeholder="Nueva rutina (ej. Tomar agua)" aria-label="Nueva rutina"><input id="rtMin" class="rtmn" type="number" min="5" step="5" placeholder="min" aria-label="Minutos (obligatorio)" title="Minutos (obligatorio)"><button type="button" class="primary" id="rtAdd">Agregar</button></div>
-    <div class="rtpre"><span>Momento:</span><span class="seg rtps" id="rtPart">${RTP.map(p=>`<button type="button" data-p="${p}" class="${(render.rtPart||"m")===p?"on":""}">${RTPN[p]}</button>`).join("")}</span><span class="rtsp"></span><span>Se repite:</span><span class="dcs" id="rtDays">${rtChips(nd)}</span><button type="button" class="sbt" data-p="all">Todos los días</button><button type="button" class="sbt" data-p="wk">L–V</button></div>`;
+    <div class="rtpre"><span>Momento:</span><span class="seg rtps" id="rtPart">${RTP.map(p=>`<button type="button" data-p="${p}" class="${(render.rtPart||"m")===p?"on":""}" title="${RTPH[p]}">${RTPN[p]}</button>`).join("")}</span><span class="rtsp"></span><span>Se repite:</span><span class="dcs" id="rtDays">${rtChips(nd)}</span><button type="button" class="sbt" data-p="all">Todos los días</button><button type="button" class="sbt" data-p="wk">L–V</button></div>`;
   box.appendChild(add);
   const paint=()=>add.querySelectorAll(".dc").forEach(b=>{const on=nd.includes(+b.dataset.d);b.classList.toggle("on",on);b.setAttribute("aria-pressed",on)});
   add.querySelector("#rtDays").onclick=ev=>{const b=ev.target.closest(".dc");if(!b)return;const d=+b.dataset.d,i=nd.indexOf(d);if(i>=0)nd.splice(i,1);else nd.push(d);paint()};
