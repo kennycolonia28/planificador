@@ -135,9 +135,16 @@ function schedule(){
   open.forEach(t=>{if(pinOf(t)!=="hoy")plan[t.id]={o:-1}});
   /* horas dentro de Hoy en el orden exacto de la lista; si ya no queda espacio, la tarea sigue en Hoy después del último bloque */
   const c2=cur();let ov=Math.max(from,free[0].length?free[0][free[0].length-1][1]:from);
-  hoyT.forEach(t=>{const m=Math.max(0,t.min|0),s0=fit(c2,0,m);
+  const place=t=>{const m=Math.max(0,t.min|0),s0=fit(c2,0,m);
     if(s0!=null){plan[t.id]={o:0,s:s0,e:s0+m};return}
-    const s1=Math.min(ov,1439);ov+=m;plan[t.id]={o:0,s:s1,e:s1+m}});
+    const s1=Math.min(ov,1439);ov+=m;plan[t.id]={o:0,s:s1,e:s1+m}};
+  /* las rutinas no empiezan antes de su momento (Tarde 12 p.m., Noche 6 p.m.): esperan, y mientras tanto ese espacio lo usan las tareas siguientes */
+  const eff=()=>{const sl=free[0],st=c2[0];return st.k<sl.length?Math.max(st.pos,sl[st.k][0]):ov};
+  const wait=[],flush=()=>{while(wait.length&&eff()>=wait[0].ms)place(wait.shift().t)};
+  hoyT.forEach(t=>{flush();const ms=rtStart(t);
+    if(ms>eff()){let i=wait.length;while(i>0&&wait[i-1].ms>ms)i--;wait.splice(i,0,{t,ms});return}
+    place(t)});
+  wait.forEach(w=>{const st=c2[0];if(st.pos<w.ms)st.pos=w.ms;if(ov<w.ms)ov=w.ms;place(w.t)});
   return plan;
 }
 /* ===== lo que no cabe en Hoy baja a Cola =====
@@ -601,6 +608,10 @@ $("blkMode").onclick=e=>{const b=e.target.closest("button[data-m]");if(!b)return
 /* ===== RUTINAS: una línea que se despliega; cada día que tocan crean sola una tarea en HOY (se tacha al hacerla y al día siguiente vuelve a salir) ===== */
 /* momentos del día: las rutinas se agrupan en Mañana, Tarde y Noche (y salen en Hoy en ese orden) */
 let rtNeedReord=false;
+/* hora mínima de inicio de una tarea de rutina según su momento */
+const RTPS={m:0,t:720,n:1080};
+const rtStart=t=>{if(!t.rt||t.sep)return 0;const r=S.routines.find(x=>x.id===t.rt);return r?RTPS[r.part]||0:0};
+const partOf=m=>m<720?"m":m<1080?"t":"n";
 const RTP=["m","t","n"],RTPN={m:"Mañana",t:"Tarde",n:"Noche"},RTPH={m:"6 a.m. – 12 p.m.",t:"12 p.m. – 6 p.m.",n:"6 p.m. – 12 a.m."};
 const rtGuess=t=>/almor|almuer|lunch|comer\b|comida/i.test(t||"")?"t":/cen(a|ar)\b|descon|noche|dormir|acostar/i.test(t||"")?"n":"m";
 const rtSort=R=>{const k=new Map(R.map((r,i)=>[r,i]));R.sort((a,b)=>RTP.indexOf(a.part)-RTP.indexOf(b.part)||k.get(a)-k.get(b))};
@@ -735,6 +746,11 @@ function render(){
       let i=bl.findIndex(b=>p.s>=toM(b[0])&&p.s<toM(b[1]));if(i<0)i=bl.findIndex(b=>p.s===toM(b[1]));
       const key=p.o+"-"+i,g=groups[groups.length-1];
       if(g&&g.key===key)g.tasks.push(t);else groups.push({key,o:p.o,i,b:bl[i],tasks:[t]})});
+    /* Hoy: títulos Mañana / Tarde / Noche según la hora calculada de cada tarea */
+    const pMin={m:0,t:0,n:0};if(zone==="hoy")arr.forEach(t=>{const p=plan[t.id];if(p&&p.o===0&&!t.sep)pMin[partOf(p.s)]+=Math.max(0,t.min|0)});
+    let lastPt=null;
+    const ptHead=(box,pt)=>{const d=document.createElement("div");d.className="hpart";d.dataset.p=pt;
+      d.innerHTML=`<b>${RTPN[pt]}</b><i>${RTPH[pt]}</i><span>${durMin(pMin[pt])}</span>`;box.appendChild(d)};
     /* un solo recuadro por día; dentro, una línea separa cada bloque */
     let box=null,day=null;
     groups.forEach(g=>{
@@ -744,7 +760,9 @@ function render(){
         const d=document.createElement("div");d.className="bsep in"+(box.querySelector(".row")?" brk":"");
         d.innerHTML=`<b>Bloque ${g.i+1}</b><span>${ampm(g.b[0])} – ${ampm(g.b[1])}</span><span class="bt${used>=cap?" full":""}">${fmt(used)} h de ${fmt(cap)} h</span>`;
         box.appendChild(d);zoneDrop(d,zone)}
-      g.tasks.forEach(t=>box.appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone)))})};
+      g.tasks.forEach(t=>{
+        if(zone==="hoy"&&g.o===0){const pt=partOf(plan[t.id].s);if(pt!==lastPt&&!(t.sep&&!pMin[pt])){lastPt=pt;ptHead(box,pt)}}
+        box.appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone))})})};
   /* franja "soltar al final": aparece solo mientras arrastras */
   const endZ=(box,z)=>{const e=document.createElement("div");e.className="endz";e.textContent="Soltar aquí para dejarlo al final";box.appendChild(e);zoneDrop(e,z)};
   secHead(L,`Hoy · ${DNL[wd(0)]} · desde ${hm(from)}`,"hoy");rowsWithBlocks(hoy,"hoy",t=>hr(t));
