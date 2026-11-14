@@ -285,6 +285,8 @@ function fillHoy(){
   flash(n?`Subí ${n} tarea${n===1?"":"s"} a Hoy (lo que cabe en tu tiempo libre).`:"No cabe ninguna tarea de Cola en el tiempo libre de hoy (las que no tienen minutos no se suben solas).")}
 document.addEventListener("dragstart",()=>{if(dragId)document.body.classList.add("dragging")});
 ["dragend","drop"].forEach(ev=>document.addEventListener(ev,()=>setTimeout(()=>{if(!dragId)document.body.classList.remove("dragging")},0)));
+/* por si el arrastre termina sin aviso (la fila se redibujó): al mover el mouse sin arrastrar, se ocultan las zonas */
+document.addEventListener("mousemove",e=>{if(!e.buttons&&document.body.classList.contains("dragging")){dragId=null;document.body.classList.remove("dragging")}});
 function zoneDrop(el,zone){
   el.dataset.zone=zone;
   el.addEventListener("dragover",e=>{if(dragId){e.preventDefault();el.classList.add("zover")}});
@@ -778,7 +780,7 @@ function render(){
     /* resumen al pie de cada tarjeta, igual que el del día: % · tareas · usado de disponible · libre */
     if(zone==="hoy")L.querySelectorAll(".pcard").forEach(c=>{const pt=c.dataset.p,f=document.createElement("div");f.className="sum psum";const a=pT[pt],cap=capPt(pt),u=pMin[pt];f.innerHTML=`${noT(a)}${mini(u,cap)}${noSep(a).length} tarea${noSep(a).length===1?"":"s"} · <b>${fmt(u)} h</b> de ${fmt(cap)} h · libre ${fmt(Math.max(0,cap-u))} h`;c.appendChild(f)})};
   /* franja "soltar al final": aparece solo mientras arrastras */
-  const endZ=(box,z)=>{const e=document.createElement("div");e.className="endz";e.textContent="Soltar aquí para dejarlo al final";box.appendChild(e);zoneDrop(e,z)};
+  const endZ=(box,z)=>{const e=document.createElement("div");e.className="endz";e.title="Soltar aquí para dejarlo al final";const ps=box.querySelector(":scope>.psum");ps?box.insertBefore(e,ps):box.appendChild(e);zoneDrop(e,z)};
   secHead(L,`Hoy · ${DNL[wd(0)]} · desde ${hm(from)}`,"hoy");rowsWithBlocks(hoy,"hoy",t=>hr(t));
   {const hb=L.querySelectorAll(".bgrp.day .pcard, .bgrp.day:not(.parts)");if(hoy.length&&hb.length)endZ(hb[hb.length-1],"hoy")}
   if(!hoy.length)empty("Nada en Hoy. Arrastra aquí una tarea desde Cola (o usa el botón de la tarea → Hoy).","hoy");
