@@ -239,6 +239,7 @@ function moveTo(id,zone,beforeId,quiet){
     if(mine.length)at=S.tasks.findIndex(x=>x.id===mine[mine.length-1])+1;
     else{const later=order.slice(k+1).flatMap(z=>lastSec[z]).filter(x=>x!==id);at=later.length?S.tasks.findIndex(x=>x.id===later[0]):S.tasks.length}}
   S.tasks.splice(at<0?S.tasks.length:at,0,t);
+  if(zone==="hoy")anchorPart([t]);else{delete t.pt;delete t.ptDay}
   commit();
   const z=ZN[zone];
   if(!quiet)flash(zone===curZone?"Orden actualizado.":`Movida a ${z}: ${t.sep?"separador":plain(t.text)}`);
@@ -271,6 +272,7 @@ function moveGroup(grp,curZone,zone,beforeId,quiet){
   delete secMode[zone];if(curZone)delete secMode[curZone];S.sortUI={m:secMode,d:sortDir};
   S.tasks=S.tasks.filter(x=>!grp.includes(x.id));
   S.tasks.splice(place(S.tasks),0,...items);
+  if(zone==="hoy")anchorPart(items);else items.forEach(x=>{delete x.pt;delete x.ptDay});
   commit();
   if(!quiet)flash(zone===curZone?`Grupo movido (${items.length-1} tareas).`:`Grupo movido a ${ZN[zone]}: ${plain(head.text||"separador")} + ${items.length-1} tareas`);
   return true
@@ -612,7 +614,12 @@ $("blkMode").onclick=e=>{const b=e.target.closest("button[data-m]");if(!b)return
 let rtNeedReord=false;
 /* hora mínima de inicio de una tarea de rutina según su momento */
 const RTPS={m:0,t:720,n:1080};
-const rtStart=t=>{if(!t.rt||t.sep)return 0;const r=S.routines.find(x=>x.id===t.rt);return r?RTPS[r.part]||0:0};
+/* una tarea soltada dentro de la tarjeta Tarde o Noche queda anclada a ese momento hoy (pt/ptDay); si no, las rutinas usan su momento */
+const rtStart=t=>{if(t.sep)return 0;if(t.pt&&t.ptDay===dk())return RTPS[t.pt]||0;if(!t.rt)return 0;const r=S.routines.find(x=>x.id===t.rt);return r?RTPS[r.part]||0:0};
+let dropPart=null;
+document.addEventListener("drop",e=>{const c=e.target.closest&&e.target.closest(".pcard");dropPart=c?c.dataset.p:null},true);
+document.addEventListener("dragend",()=>setTimeout(()=>{dropPart=null},0));
+const anchorPart=items=>{const p=dropPart;dropPart=null;if(!p)return;items.forEach(x=>{if(x.sep)return;x.pt=p;x.ptDay=dk()})};
 const partOf=m=>m<720?"m":m<1080?"t":"n";
 const RTP=["m","t","n"],RTPN={m:"Mañana",t:"Tarde",n:"Noche"},RTPH={m:"6 a.m. – 12 p.m.",t:"12 p.m. – 6 p.m.",n:"6 p.m. – 12 a.m."};
 const rtGuess=t=>/almor|almuer|lunch|comer\b|comida/i.test(t||"")?"t":/cen(a|ar)\b|descon|noche|dormir|acostar/i.test(t||"")?"n":"m";
