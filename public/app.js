@@ -1465,7 +1465,9 @@ function gEventRows(L,cardAt,pT){if(typeof G==="undefined"||!G||!(S.gcal&&S.gcal
     const nx=[...c.querySelectorAll(":scope>.row,:scope>.sepr,:scope>.bsep")].find(r=>r.dataset.s!=null&&+r.dataset.s>v.s);
     nx?c.insertBefore(d,nx):c.insertBefore(d,c.querySelector(":scope>.endz,:scope>.psum"))})}
 /* enviar Hoy al calendario */
-async function gSync(manual){clearTimeout(G.timer);if(!G.connected||!(S.gcal&&S.gcal.write)){if(manual)flash("Activa «Enviar mis tareas al calendario» primero.");return}
+/* un envío a la vez: si llega otro mientras tanto, se hace uno más al terminar */
+async function gSync(manual){if(G.busySync){G.again=true;return}G.busySync=true;try{await gSync1(manual)}finally{G.busySync=false;if(G.again){G.again=false;gSync(false)}}}
+async function gSync1(manual){clearTimeout(G.timer);if(!G.connected||!(S.gcal&&S.gcal.write)){if(manual)flash("Activa «Enviar mis tareas al calendario» primero.");return}
   const plan=schedule(),[d,e]=gDay(),today=dk();
   const items=S.tasks.filter(t=>!t.done&&!t.sep&&t.min>0&&t.pin===today&&plan[t.id]&&plan[t.id].o===0).map(t=>{const p=plan[t.id],c=S.cats.find(x=>x.id===t.cat);
     return{key:t.id,title:plain(t.text)||"(tarea)",desc:"Planificador"+(c?" · "+c.name:""),start:new Date(+d+p.s*60000).toISOString(),end:new Date(+d+p.e*60000).toISOString(),colorId:gColorOf(t.cat)}});

@@ -294,27 +294,42 @@ async function api(req, env, url) {
       const tz = typeof b.tz === "string" ? b.tz.slice(0, 64) : undefined;
       const now = Date.now();
       const existing = await gList(token, b.from, b.to, true);
-      const byKey = new Map(existing.map(e => [e.extendedProperties.private.key, e]));
+      /* cada tarea tiene un id de evento fijo (usuario + día + tarea): crear dos veces la misma es imposible,
+         aunque lleguen dos envíos a la vez. Los eventos del planificador con otro id (copias de antes) se borran. */
+      const day = String(b.from).slice(0, 10);
+      const evId = async key => "pl" + (await sha(u.id + "|" + day + "|" + key)).slice(0, 40);
+      const want = new Map();
+      for (const it of items) { const key = String(it.key || "").slice(0, 64); if (key && it.start && it.end) want.set(await evId(key), { ...it, key }); }
       let created = 0, updated = 0, removed = 0;
-      for (const it of items) {
-        const key = String(it.key || "").slice(0, 64);
-        if (!key || !it.start || !it.end) continue;
+      const keep = new Map();
+      for (const e of existing) {
+        if (want.has(e.id) && !keep.has(e.id)) { keep.set(e.id, e); continue; }
+        /* copia o tarea que ya no está en Hoy: se borra (lo ya pasado de una tarea quitada queda como registro) */
+        const dup = !want.has(e.id) && [...want.values()].some(w => w.key === (e.extendedProperties.private.key || ""));
+        if (dup || !/^pl[0-9a-f]{40}$/.test(e.id) || Date.parse(e.start.dateTime || e.start.date) > now) {
+          try { await gApi(token, "/calendars/primary/events/" + e.id, { method: "DELETE" }); removed++; } catch {}
+        }
+      }
+      for (const [id, it] of want) {
         const ev = {
           summary: String(it.title || "").slice(0, 300), description: String(it.desc || "").slice(0, 1000),
           start: { dateTime: it.start, timeZone: tz }, end: { dateTime: it.end, timeZone: tz },
-          colorId: it.colorId ? String(it.colorId) : undefined,
-          reminders: { useDefault: false },
-          extendedProperties: { private: { [G_TAG]: "1", key } },
+          colorId: it.colorId ? String(it.colorId) : undefined, reminders: { useDefault: false }, status: "confirmed",
+          extendedProperties: { private: { [G_TAG]: "1", key: it.key } },
         };
-        const old = byKey.get(key); byKey.delete(key);
-        if (!old) { await gApi(token, "/calendars/primary/events", { method: "POST", body: JSON.stringify(ev) }); created++; continue; }
-        const same = old.summary === ev.summary && (old.colorId || undefined) === ev.colorId &&
-          Date.parse(old.start.dateTime) === Date.parse(it.start) && Date.parse(old.end.dateTime) === Date.parse(it.end);
-        if (!same) { await gApi(token, "/calendars/primary/events/" + old.id, { method: "PATCH", body: JSON.stringify(ev) }); updated++; }
-      }
-      /* lo que ya no está en Hoy: se borra si aún no empezó (lo ya pasado queda como registro) */
-      for (const e of byKey.values()) {
-        if (Date.parse(e.start.dateTime || e.start.date) > now) { await gApi(token, "/calendars/primary/events/" + e.id, { method: "DELETE" }); removed++; }
+        const old = keep.get(id);
+        if (old) {
+          const same = old.summary === ev.summary && (old.colorId || undefined) === ev.colorId &&
+            Date.parse(old.start.dateTime) === Date.parse(it.start) && Date.parse(old.end.dateTime) === Date.parse(it.end);
+          if (!same) { await gApi(token, "/calendars/primary/events/" + id, { method: "PATCH", body: JSON.stringify(ev) }); updated++; }
+          continue;
+        }
+        try { await gApi(token, "/calendars/primary/events", { method: "POST", body: JSON.stringify({ id, ...ev }) }); created++; }
+        catch (x) {
+          /* ya existe (otro envío lo creó recién, o se borró antes): se actualiza en vez de crear otro */
+          if (!/already exists|identifier/i.test(x.message)) throw x;
+          await gApi(token, "/calendars/primary/events/" + id, { method: "PATCH", body: JSON.stringify(ev) }); updated++;
+        }
       }
       return json({ ok: true, created, updated, removed });
     }
