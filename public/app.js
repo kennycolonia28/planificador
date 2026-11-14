@@ -95,7 +95,12 @@ const wd=o=>{const d=new Date();d.setDate(d.getDate()+o);return d.getDay()};
 const capDay=w=>S.week[w].reduce((a,b)=>a+Math.max(0,toM(b[1])-toM(b[0])),0);
 /* modo "Sin bloques": Hoy es un solo tramo desde la hora actual hasta la medianoche (los bloques guardados no se tocan) */
 const BL=w=>S.noBlk?[["00:00","24:00"]]:S.week[w];
-const hoyCapM=()=>{const from=S.from==null?nowM():toM(S.from);return BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0)};
+/* tiempo de hoy menos tus eventos de Google Calendar (si está activado "Respetar mis eventos") */
+const BLt=()=>{const base=BL(wd(0));if(typeof G==="undefined"||!G||!(S.gcal&&S.gcal.read!==false)||!G.busy.length)return base;
+  let sl=base.map(b=>[toM(b[0]),toM(b[1])]);
+  G.busy.forEach(([bs,be])=>{sl=sl.flatMap(([a,b])=>be<=a||bs>=b?[[a,b]]:[[a,Math.max(a,bs)],[Math.min(b,be),b]].filter(x=>x[1]>x[0]))});
+  return sl.map(([a,b])=>[hm(a),hm(b)])};
+const hoyCapM=()=>{const from=S.from==null?nowM():toM(S.from);return BLt().reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0)};
 const capWeek=()=>[0,1,2,3,4,5,6].reduce((a,w)=>a+capDay(w),0);
 function flash(t){$("toast").textContent=t;clearTimeout(flash.t);flash.t=setTimeout(()=>$("toast").textContent="",2600)}
 if(S.day!==dk()){S.from=null;S.day=dk()}
@@ -126,7 +131,7 @@ const zoneOf=o=>o<0?"cola":"hoy";
 /* pone hora solo a lo que tú fijaste en Hoy (desde la hora elegida); todo lo demás es Cola y nunca sube solo */
 function schedule(){
   const from=S.from==null?nowM():toM(S.from),free=[],N=NDAYS(),L=DL();
-  for(let o=0;o<=N;o++)free.push(BL(wd(o)).map(b=>[Math.max(toM(b[0]),o?0:from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]));
+  for(let o=0;o<=N;o++)free.push((o?BL(wd(o)):BLt()).map(b=>[Math.max(toM(b[0]),o?0:from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]));
   /* cursor secuencial por día: una tarea nunca vuelve a rellenar un hueco anterior, así se respeta el orden de la lista */
   const cur=()=>free.map(()=>({k:0,pos:0}));
   const fit=(c,o,m)=>{const sl=free[o],st=c[o];while(st.k<sl.length){if(st.pos<sl[st.k][0])st.pos=sl[st.k][0];if(sl[st.k][1]-st.pos>=m){const s=st.pos;st.pos+=m;return s}st.k++}return null};
@@ -153,7 +158,7 @@ function schedule(){
    Separadores y tareas sin minutos nunca bajan. */
 function hoyOverflow(tasks){
   const from=S.from==null?nowM():toM(S.from);
-  const sl=BL(wd(0)).map(b=>[Math.max(toM(b[0]),from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]);
+  const sl=BLt().map(b=>[Math.max(toM(b[0]),from),toM(b[1])]).filter(x=>x[1]>x[0]).sort((a,b)=>a[0]-b[0]);
   let k=0,pos=0;const out=[];
   (tasks||S.tasks).filter(t=>!t.done&&pinOf(t)==="hoy").forEach(t=>{const m=Math.max(0,t.min|0);if(t.sep||!m)return;
     let kk=k,pp=pos,ok=false;
@@ -161,7 +166,7 @@ function hoyOverflow(tasks){
     if(ok){k=kk;pos=pp}else out.push(t)});
   return out}
 function hoyFree(){const from=S.from==null?nowM():toM(S.from);
-  const cap=BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
+  const cap=BLt().reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
   const used=S.tasks.filter(t=>!t.done&&!t.sep&&pinOf(t)==="hoy").reduce((a,t)=>a+(t.min|0),0);
   return Math.max(0,cap-used)}
 /* baja a Cola (arriba) lo que no cabe. Se guarda junto con el cambio que lo provocó, así Deshacer revierte las dos cosas. */
@@ -280,7 +285,7 @@ function moveGroup(grp,curZone,zone,beforeId,quiet){
 /* sube a Hoy, en el orden de Cola, las tareas que quepan en el tiempo libre que queda hoy (se salta las que no caben y sigue con las más cortas) */
 function fillHoy(){
   const from=S.from==null?nowM():toM(S.from);
-  const cap=BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
+  const cap=BLt().reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
   const mins=id=>{const t=S.tasks.find(x=>x.id===id);return t?(t.min|0):0};
   let used=lastSec.hoy.reduce((a,id)=>a+mins(id),0),n=0;
   [...lastSec.cola].forEach(id=>{const m=mins(id);if(!(m>0)||used+m>cap)return;if(moveTo(id,"hoy",null,true)){used+=m;n++}});
@@ -728,7 +733,7 @@ function render(){
   const byS=a=>a.sort((x,y)=>(plan[x.id].o-plan[y.id].o)||(plan[x.id].s-plan[y.id].s));
   const hoy=byS(open.filter(t=>plan[t.id].o===0)),cola=open.filter(t=>plan[t.id].o<0);
   const from=S.from==null?nowM():toM(S.from);
-  const capHoy=BL(wd(0)).reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
+  const capHoy=BLt().reduce((a,b)=>a+Math.max(0,toM(b[1])-Math.max(toM(b[0]),from)),0);
   const empty=(t,z)=>{const p=document.createElement("p");p.className="note dropz";p.innerHTML=t;L.appendChild(p);zoneDrop(p,z)};
   const foot=(t,z)=>{const p=document.createElement("div");p.className="sum";p.innerHTML=t;L.appendChild(p);zoneDrop(p,z)};
   lastSec={hoy:hoy.map(t=>t.id),cola:cola.map(t=>t.id)};
@@ -761,7 +766,7 @@ function render(){
     const pMin={m:0,t:0,n:0},pT={m:[],t:[],n:[]};if(zone==="hoy")arr.forEach(t=>{const p=plan[t.id];if(p&&p.o===0){pT[partOf(p.s)].push(t);
       if(!t.sep)RTP.forEach(k=>{pMin[k]+=Math.max(0,Math.min(p.e,PW[k][1])-Math.max(p.s,PW[k][0]))})}});
     /* tiempo disponible de cada momento: sus horas dentro de tus bloques, desde la hora actual */
-    const capPt=pt=>BL(wd(0)).reduce((a,b)=>a+Math.max(0,Math.min(toM(b[1]),PW[pt][1])-Math.max(toM(b[0]),from,PW[pt][0])),0);
+    const capPt=pt=>BLt().reduce((a,b)=>a+Math.max(0,Math.min(toM(b[1]),PW[pt][1])-Math.max(toM(b[0]),from,PW[pt][0])),0);
     let lastPt=null;
     /* cada momento del día es su propia tarjeta redondeada, con su título y total */
     let card=null;
@@ -769,6 +774,10 @@ function render(){
       const d=document.createElement("div");d.className="hpart";d.dataset.p=pt;
       d.innerHTML=`<b>${RTPN[pt]}</b><i>${RTPH[pt]}</i><span>${durMin(pMin[pt])}</span>`;card.appendChild(d);box.appendChild(card)};
     const hoyPt=t=>partOf(plan[t.id].s);
+    /* tarjeta de un momento para los eventos del calendario (la crea en su lugar si ese momento no tiene tareas) */
+    const ptCardAt=pt=>{let c=L.querySelector(`.bgrp.day .pcard[data-p="${pt}"]`);if(c)return c;const bx=L.querySelector(".bgrp.day");if(!bx)return null;
+      const keep=card,keepPt=lastPt;ptCard(bx,pt);c=card;card=keep;lastPt=keepPt;
+      const nx=[...bx.querySelectorAll(":scope>.pcard")].find(x=>RTP.indexOf(x.dataset.p)>RTP.indexOf(pt));if(nx)bx.insertBefore(c,nx);return c};
     /* un solo recuadro por día; dentro, una línea separa cada bloque */
     let box=null,day=null;
     groups.forEach(g=>{
@@ -783,7 +792,8 @@ function render(){
         tgt().appendChild(d);zoneDrop(d,zone)}
       g.tasks.forEach(t=>{
         if(today){const pt=hoyPt(t);if(pt!==lastPt&&!(t.sep&&!pMin[pt]))ptCard(box,pt)}
-        tgt().appendChild(t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone))})});
+        const el=t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone);if(plan[t.id])el.dataset.s=plan[t.id].s;tgt().appendChild(el)})});
+    if(zone==="hoy")gEventRows(L,ptCardAt,pT);
     /* resumen al pie de cada tarjeta, igual que el del día: % · tareas · usado de disponible · libre */
     if(zone==="hoy")L.querySelectorAll(".pcard").forEach(c=>{const pt=c.dataset.p,f=document.createElement("div");f.className="sum psum";const a=pT[pt],cap=capPt(pt),u=pMin[pt];f.innerHTML=`${noT(a)}${mini(u,cap)}${noSep(a).length} tarea${noSep(a).length===1?"":"s"} · <b>${fmt(u)} h</b> de ${fmt(cap)} h · libre ${fmt(Math.max(0,cap-u))} h`;c.appendChild(f)})};
   /* franja "soltar al final": aparece solo mientras arrastras */
@@ -1291,7 +1301,7 @@ function renderTags(){
     C.appendChild(d)});
   if(!S.tags.length)C.innerHTML='<p class="note">No hay etiquetas. Crea una con “+ Etiqueta”.</p>';
 }
-function commit(){save();render()}
+function commit(){save();render();gAfterCommit()}
 
 $("now").onclick=()=>{S.from=null;commit()};
 $("from").onchange=e=>{S.from=e.target.value;commit()};
@@ -1420,3 +1430,79 @@ addEventListener("storage",e=>{
   if(e.key!==KEY||!e.newValue)return;
   let n;try{n=JSON.parse(e.newValue)}catch(_){return}
   applyState(n,"Actualizado con los cambios de otra ventana.")});
+
+
+/* ================= Google Calendar =================
+   Leer: tus eventos de hoy se restan del tiempo libre (las tareas los saltan) y se muestran en Hoy.
+   Escribir: tus tareas de Hoy se crean como eventos en tu calendario, con el color de Google más parecido al de su categoría.
+   Todo pasa por el servidor (/api/google/*); el planificador solo guarda tus preferencias en S.gcal. */
+var G={available:false,connected:false,email:null,busy:[],events:[],last:null,msg:"",timer:null,poll:null};
+const GCOL=[["1","Lavanda","#7986CB"],["2","Salvia","#33B679"],["3","Uva","#8E24AA"],["4","Flamenco","#E67C73"],["5","Plátano","#F6BF26"],["6","Mandarina","#F4511E"],["7","Pavo real","#039BE5"],["8","Grafito","#616161"],["9","Arándano","#3F51B5"],["10","Albahaca","#0B8043"],["11","Tomate","#D50000"]];
+const gRGB=h=>{h=String(h||"#888").replace("#","");if(h.length===3)h=h.replace(/./g,c=>c+c);const n=parseInt(h,16);return[n>>16&255,n>>8&255,n&255]};
+const gNear=hex=>{const[a,b,c]=gRGB(hex);let best=GCOL[7],bd=1e9;GCOL.forEach(g=>{const[x,y,z]=gRGB(g[2]),d=(a-x)**2*2+(b-y)**2*4+(c-z)**2*3;if(d<bd){bd=d;best=g}});return best[0]};
+const gColorOf=cat=>{const m=(S.gcal&&S.gcal.colors)||{};if(m[cat])return m[cat];const c=S.cats.find(x=>x.id===cat);return gNear(c?c.color:"#888")};
+const gDay=()=>{const d=new Date();d.setHours(0,0,0,0);const e=new Date(d);e.setDate(e.getDate()+1);return[d,e]};
+const gTZ=()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch(_){return undefined}};
+async function gFetch(path,opt){const r=await fetch(path,{credentials:"same-origin",...opt,headers:{"content-type":"application/json",...((opt&&opt.headers)||{})}});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.error||("Error "+r.status)),{status:r.status});return j}
+async function gStatus(){try{const j=await gFetch("/api/google/status");G.available=j.available;G.connected=j.connected;G.email=j.email}catch(_){G.available=false;G.connected=false}renderGcal()}
+/* eventos de hoy → intervalos ocupados en minutos */
+async function gLoad(){if(!G.connected){G.busy=[];G.events=[];return}
+  const[d,e]=gDay();
+  try{const j=await gFetch(`/api/google/events?from=${encodeURIComponent(d.toISOString())}&to=${encodeURIComponent(e.toISOString())}`);
+    const toMin=v=>{const x=new Date(v);return Math.max(0,Math.min(1440,Math.round((x-d)/60000)))};
+    G.events=j.events.filter(v=>!v.allDay).map(v=>({id:v.id,title:v.title,s:toMin(v.start),e:toMin(v.end)})).filter(v=>v.e>v.s);
+    G.busy=G.events.map(v=>[v.s,v.e]);G.msg=""}
+  catch(x){if(x.status===409){G.connected=false;G.busy=[];G.events=[]}G.msg="No pude leer tu calendario: "+x.message}
+  render();renderGcal()}
+/* filas de eventos dentro de las tarjetas de Hoy, ordenadas por hora */
+function gEventRows(L,cardAt,pT){if(typeof G==="undefined"||!G||!(S.gcal&&S.gcal.read!==false)||!G.events.length)return;
+  const from=S.from==null?nowM():toM(S.from);
+  G.events.filter(v=>v.e>from).forEach(v=>{const c=cardAt(partOf(Math.max(v.s,from)));if(!c)return;
+    const d=document.createElement("div");d.className="row gev";d.dataset.s=v.s;
+    d.innerHTML=`<span class="gico" aria-hidden="true">📅</span><span class="gtt">${esc(v.title)}</span><span class="gtm">${hm(v.s)} – ${hm(v.e)}</span><span class="gtag">Calendario</span>`;
+    d.title="Evento de tu Google Calendar: las tareas se acomodan alrededor";
+    const nx=[...c.querySelectorAll(":scope>.row,:scope>.sepr,:scope>.bsep")].find(r=>r.dataset.s!=null&&+r.dataset.s>v.s);
+    nx?c.insertBefore(d,nx):c.insertBefore(d,c.querySelector(":scope>.endz,:scope>.psum"))})}
+/* enviar Hoy al calendario */
+async function gSync(manual){clearTimeout(G.timer);if(!G.connected||!(S.gcal&&S.gcal.write)){if(manual)flash("Activa «Enviar mis tareas al calendario» primero.");return}
+  const plan=schedule(),[d,e]=gDay(),today=dk();
+  const items=S.tasks.filter(t=>!t.done&&!t.sep&&t.min>0&&t.pin===today&&plan[t.id]&&plan[t.id].o===0).map(t=>{const p=plan[t.id],c=S.cats.find(x=>x.id===t.cat);
+    return{key:t.id,title:plain(t.text)||"(tarea)",desc:"Planificador"+(c?" · "+c.name:""),start:new Date(+d+p.s*60000).toISOString(),end:new Date(+d+p.e*60000).toISOString(),colorId:gColorOf(t.cat)}});
+  G.msg="Enviando…";renderGcal();
+  try{const j=await gFetch("/api/google/sync",{method:"POST",body:JSON.stringify({from:d.toISOString(),to:e.toISOString(),tz:gTZ(),items})});
+    G.last=new Date();G.msg=`Calendario al día: ${j.created} nuevas, ${j.updated} movidas, ${j.removed} quitadas.`;if(manual)flash("Hoy enviado a tu calendario.")}
+  catch(x){if(x.status===409)G.connected=false;G.msg="No pude enviar al calendario: "+x.message;if(manual)flash(G.msg)}
+  renderGcal()}
+/* después de cada cambio: espera 2 minutos sin cambios y recién actualiza el calendario (para no mover tus eventos a cada rato) */
+function gAfterCommit(){if(typeof G==="undefined"||!G||!G.connected||!(S.gcal&&S.gcal.write))return;clearTimeout(G.timer);G.timer=setTimeout(()=>gSync(false),120000);G.msg="Se enviará al calendario en 2 minutos (o usa «Enviar ahora»).";renderGcal()}
+function gSet(k,v){S.gcal={read:true,write:false,colors:{},...(S.gcal||{})};S.gcal[k]=v;save();render();renderGcal()}
+function renderGcal(){const P=$("gcalBody");if(!P)return;const g=S.gcal||{},rd=g.read!==false,wr=!!g.write;
+  if(!G.available){P.innerHTML=`<p class="note">La conexión con Google todavía no está configurada en este planificador.</p>`;return}
+  if(!G.connected){P.innerHTML=`<p class="note">Conecta tu Google Calendar para que Hoy respete tus reuniones y, si quieres, para ver tus tareas dentro de tu calendario.</p>
+    <a class="gbtn" href="/api/google/connect"><span aria-hidden="true">G</span> Conectar con Google</a>${G.msg?`<p class="note gmsg">${esc(G.msg)}</p>`:""}`;return}
+  const cats=S.cats.map(c=>{const cur=gColorOf(c.id),own=!!(g.colors&&g.colors[c.id]),hex=(GCOL.find(x=>x[0]===cur)||GCOL[7])[2];
+    return`<label class="gcrow"><span class="gsw" style="background:${c.color}"></span><span class="gcn">${esc(c.name)}</span><span class="gar">→</span><span class="gsw" style="background:${hex}"></span>
+      <select data-c="${c.id}" aria-label="Color en Google para ${esc(c.name)}"><option value="">Automático (${(GCOL.find(x=>x[0]===gNear(c.color))||GCOL[7])[1]})</option>${GCOL.map(x=>`<option value="${x[0]}"${own&&cur===x[0]?" selected":""}>${x[1]}</option>`).join("")}</select></label>`}).join("");
+  P.innerHTML=`<p class="gcon">Conectado como <b>${esc(G.email||"tu cuenta de Google")}</b> <button type="button" class="ghost sm" id="gOff">Desconectar</button></p>
+    <label class="gchk"><input type="checkbox" id="gRead"${rd?" checked":""}> <span><b>Respetar mis eventos</b><br><span class="note">Tus reuniones de hoy se marcan en Hoy y las tareas se acomodan antes y después.</span></span></label>
+    <label class="gchk"><input type="checkbox" id="gWrite"${wr?" checked":""}> <span><b>Enviar mis tareas al calendario</b><br><span class="note">Tus tareas de Hoy aparecen como eventos a su hora. Se actualiza solo, 2 minutos después de tu último cambio. Nunca toca tus propios eventos.</span></span></label>
+    ${wr?`<p><button type="button" class="primary sm" id="gNow">Enviar ahora</button></p>`:""}
+    ${G.msg?`<p class="note gmsg" role="status">${esc(G.msg)}</p>`:""}
+    ${wr?`<details class="gcols"><summary>Colores en Google Calendar</summary><p class="note">Google solo permite 11 colores; cada categoría usa el más parecido. Puedes cambiarlo aquí.</p>${cats}</details>`:""}`;
+  P.querySelector("#gOff").onclick=async()=>{try{await gFetch("/api/google/disconnect",{method:"POST",body:"{}"})}catch(_){}G.connected=false;G.busy=[];G.events=[];G.msg="Desconectado.";render();renderGcal()};
+  P.querySelector("#gRead").onchange=e=>gSet("read",e.target.checked);
+  P.querySelector("#gWrite").onchange=e=>{gSet("write",e.target.checked);if(e.target.checked)gSync(true)};
+  const nb=P.querySelector("#gNow");if(nb)nb.onclick=()=>gSync(true);
+  P.querySelectorAll("select[data-c]").forEach(sel=>sel.onchange=()=>{const m={...((S.gcal&&S.gcal.colors)||{})};if(sel.value)m[sel.dataset.c]=sel.value;else delete m[sel.dataset.c];gSet("colors",m);gAfterCommit()})}
+(async()=>{
+  const q=new URLSearchParams(location.search),r=q.get("google");
+  if(r){history.replaceState(null,"",location.pathname);
+    flash({ok:"Google Calendar conectado.",cancelado:"Conexión con Google cancelada.",permisos:"Para conectar, acepta el permiso de ver y editar tus eventos.",error:"No se pudo conectar con Google. Inténtalo otra vez."}[r]||"");
+    if(r==="ok"){S.gcal={read:true,write:false,colors:{},...(S.gcal||{})};save()}
+    const p=document.querySelector('[aria-label="Google Calendar"]');if(p)setTimeout(()=>p.scrollIntoView({behavior:"smooth",block:"center"}),400)}
+  await gStatus();await gLoad();
+  if(G.connected&&S.gcal&&S.gcal.write)gSync(false);
+  G.poll=setInterval(gLoad,5*60000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&G.connected)gLoad()});
+})();

@@ -21,6 +21,8 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites(code TEXT PRIMARY KEY, note TEXT, created_by TEXT, created_at INTEGER NOT NULL, used_by TEXT, used_at INTEGER)`,
   `CREATE TABLE IF NOT EXISTS attempts(k TEXT NOT NULL, at INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS attempts_k ON attempts(k, at)`,
+  `CREATE TABLE IF NOT EXISTS google(user_id TEXT PRIMARY KEY, email TEXT, refresh TEXT NOT NULL, access TEXT, expires INTEGER, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS gstate(state TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL)`,
 ];
 let ready = false;
 async function init(db) {
@@ -60,6 +62,70 @@ function sessionCookie(req, token, maxAge) {
   return `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
 async function body(req) { try { return await req.json(); } catch { return {}; } }
+
+/* ---------- Google Calendar ----------
+   Cada usuario conecta su propia cuenta de Google ("Conectar con Google"). Guardamos su token de acceso
+   cifrado (AES-GCM con una clave derivada del secreto de la app), y con él:
+   - leemos sus eventos de hoy (para que las tareas los respeten)
+   - creamos/actualizamos sus tareas de Hoy como eventos (marcados como del planificador; nunca tocamos los suyos). */
+const G_SCOPE = "https://www.googleapis.com/auth/calendar.events openid email";
+const G_TAG = "planificador";                 // propiedad privada que marca los eventos creados por el planificador
+const gReady = env => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+const gRedirect = url => url.origin + "/api/google/callback";
+async function gKey(env) {
+  const raw = await crypto.subtle.digest("SHA-256", enc.encode("planificador-google:" + env.GOOGLE_CLIENT_SECRET));
+  return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+const b64 = u8 => btoa(String.fromCharCode(...u8));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function seal(env, text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await gKey(env), enc.encode(text)));
+  return b64(iv) + "." + b64(ct);
+}
+async function unseal(env, s) {
+  const [iv, ct] = String(s).split(".");
+  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(iv) }, await gKey(env), unb64(ct)));
+}
+async function gTokenReq(env, params) {
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, ...params }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error_description || j.error || "google token"), { gerr: j.error });
+  return j;
+}
+/* token de acceso vigente del usuario (lo renueva si venció); null si no está conectado o Google lo revocó */
+async function gAccess(env, userId) {
+  const row = await env.DB.prepare("SELECT refresh,access,expires FROM google WHERE user_id=?").bind(userId).first();
+  if (!row) return null;
+  if (row.access && row.expires > Date.now() + 60_000) return unseal(env, row.access);
+  try {
+    const t = await gTokenReq(env, { grant_type: "refresh_token", refresh_token: await unseal(env, row.refresh) });
+    await env.DB.prepare("UPDATE google SET access=?,expires=? WHERE user_id=?")
+      .bind(await seal(env, t.access_token), Date.now() + (t.expires_in || 3600) * 1000, userId).run();
+    return t.access_token;
+  } catch (e) {
+    if (e.gerr === "invalid_grant") await env.DB.prepare("DELETE FROM google WHERE user_id=?").bind(userId).run();
+    return null;
+  }
+}
+async function gApi(token, path, opt = {}) {
+  const r = await fetch("https://www.googleapis.com/calendar/v3" + path, {
+    ...opt, headers: { authorization: "Bearer " + token, "content-type": "application/json", ...(opt.headers || {}) },
+  });
+  if (r.status === 204) return {};
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j.error && j.error.message) || "Google Calendar " + r.status);
+  return j;
+}
+/* eventos del calendario principal entre dos instantes (incluye o no los del planificador) */
+async function gList(token, timeMin, timeMax, mine) {
+  const q = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "250" });
+  if (mine) q.set("privateExtendedProperty", G_TAG + "=1");
+  return (await gApi(token, "/calendars/primary/events?" + q)).items || [];
+}
 
 /* ---------- sesiones ---------- */
 async function newSession(env, req, userId) {
@@ -154,6 +220,107 @@ async function api(req, env, url) {
   const u = await currentUser(env, req);
   if (!u) return err("Tu sesión terminó. Vuelve a iniciar sesión.", 401);
 
+  /* ---- Google Calendar ---- */
+  if (path.startsWith("/api/google/")) {
+    if (path === "/api/google/status" && m === "GET") {
+      if (!gReady(env)) return json({ available: false, connected: false });
+      const row = await env.DB.prepare("SELECT email FROM google WHERE user_id=?").bind(u.id).first();
+      return json({ available: true, connected: !!row, email: row ? row.email : null });
+    }
+    if (!gReady(env)) return err("La conexión con Google aún no está configurada.", 503);
+
+    if (path === "/api/google/connect" && m === "GET") {
+      const state = rand(16);
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM gstate WHERE created_at<?").bind(Date.now() - 15 * 60_000),
+        env.DB.prepare("INSERT INTO gstate(state,user_id,created_at) VALUES(?,?,?)").bind(state, u.id, Date.now()),
+      ]);
+      const q = new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID, redirect_uri: gRedirect(url), response_type: "code", scope: G_SCOPE,
+        access_type: "offline", prompt: "consent", include_granted_scopes: "true", state, login_hint: u.email,
+      });
+      return Response.redirect("https://accounts.google.com/o/oauth2/v2/auth?" + q, 302);
+    }
+
+    if (path === "/api/google/callback" && m === "GET") {
+      const back = r => Response.redirect(url.origin + "/app?google=" + r, 302);
+      const state = url.searchParams.get("state") || "", code = url.searchParams.get("code");
+      const st = await env.DB.prepare("SELECT user_id,created_at FROM gstate WHERE state=?").bind(state).first();
+      await env.DB.prepare("DELETE FROM gstate WHERE state=?").bind(state).run();
+      if (!st || st.user_id !== u.id || st.created_at < Date.now() - 15 * 60_000) return back("error");
+      if (!code) return back("cancelado");
+      let t;
+      try { t = await gTokenReq(env, { grant_type: "authorization_code", code, redirect_uri: gRedirect(url) }); }
+      catch { return back("error"); }
+      if (!t.refresh_token) return back("error");
+      if (!String(t.scope || "").includes("calendar.events")) return back("permisos");
+      let email = null;
+      try { email = JSON.parse(atob(t.id_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).email || null; } catch {}
+      await env.DB.prepare(`INSERT INTO google(user_id,email,refresh,access,expires,created_at) VALUES(?,?,?,?,?,?)
+        ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,refresh=excluded.refresh,access=excluded.access,expires=excluded.expires`)
+        .bind(u.id, email, await seal(env, t.refresh_token), await seal(env, t.access_token), Date.now() + (t.expires_in || 3600) * 1000, Date.now()).run();
+      return back("ok");
+    }
+
+    if (path === "/api/google/disconnect" && m === "POST") {
+      const row = await env.DB.prepare("SELECT refresh FROM google WHERE user_id=?").bind(u.id).first();
+      if (row) {
+        try { await fetch("https://oauth2.googleapis.com/revoke?token=" + encodeURIComponent(await unseal(env, row.refresh)), { method: "POST" }); } catch {}
+        await env.DB.prepare("DELETE FROM google WHERE user_id=?").bind(u.id).run();
+      }
+      return json({ ok: true });
+    }
+
+    const token = await gAccess(env, u.id);
+    if (!token) return err("Google no está conectado.", 409);
+
+    /* eventos del usuario en un rango (sin los creados por el planificador) */
+    if (path === "/api/google/events" && m === "GET") {
+      const from = url.searchParams.get("from"), to = url.searchParams.get("to");
+      if (!from || !to) return err("Falta el rango.", 400);
+      const items = await gList(token, from, to, false);
+      return json({ events: items
+        .filter(e => e.status !== "cancelled" && !(e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private[G_TAG]))
+        .filter(e => e.transparency !== "transparent")
+        .filter(e => !(e.attendees || []).some(a => a.self && a.responseStatus === "declined"))
+        .map(e => ({ id: e.id, title: e.summary || "(Sin título)", start: e.start.dateTime || e.start.date, end: e.end.dateTime || e.end.date, allDay: !e.start.dateTime, color: e.colorId || null })) });
+    }
+
+    /* sincroniza las tareas de Hoy como eventos: crea, actualiza o borra solo los eventos del planificador de ese rango */
+    if (path === "/api/google/sync" && m === "POST") {
+      const b = await body(req);
+      const items = Array.isArray(b.items) ? b.items.slice(0, 80) : [];
+      if (!b.from || !b.to) return err("Falta el rango.", 400);
+      const tz = typeof b.tz === "string" ? b.tz.slice(0, 64) : undefined;
+      const now = Date.now();
+      const existing = await gList(token, b.from, b.to, true);
+      const byKey = new Map(existing.map(e => [e.extendedProperties.private.key, e]));
+      let created = 0, updated = 0, removed = 0;
+      for (const it of items) {
+        const key = String(it.key || "").slice(0, 64);
+        if (!key || !it.start || !it.end) continue;
+        const ev = {
+          summary: String(it.title || "").slice(0, 300), description: String(it.desc || "").slice(0, 1000),
+          start: { dateTime: it.start, timeZone: tz }, end: { dateTime: it.end, timeZone: tz },
+          colorId: it.colorId ? String(it.colorId) : undefined,
+          reminders: { useDefault: false },
+          extendedProperties: { private: { [G_TAG]: "1", key } },
+        };
+        const old = byKey.get(key); byKey.delete(key);
+        if (!old) { await gApi(token, "/calendars/primary/events", { method: "POST", body: JSON.stringify(ev) }); created++; continue; }
+        const same = old.summary === ev.summary && (old.colorId || undefined) === ev.colorId &&
+          Date.parse(old.start.dateTime) === Date.parse(it.start) && Date.parse(old.end.dateTime) === Date.parse(it.end);
+        if (!same) { await gApi(token, "/calendars/primary/events/" + old.id, { method: "PATCH", body: JSON.stringify(ev) }); updated++; }
+      }
+      /* lo que ya no está en Hoy: se borra si aún no empezó (lo ya pasado queda como registro) */
+      for (const e of byKey.values()) {
+        if (Date.parse(e.start.dateTime || e.start.date) > now) { await gApi(token, "/calendars/primary/events/" + e.id, { method: "DELETE" }); removed++; }
+      }
+      return json({ ok: true, created, updated, removed });
+    }
+    return err("No encontrado.", 404);
+  }
+
   if (path === "/api/me" && m === "GET")
     return json({ email: u.email, role: u.role, mustChange: !!u.must_change, id: u.id });
 
@@ -209,6 +376,7 @@ async function api(req, env, url) {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM states WHERE user_id=?").bind(u.id),
       env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(u.id),
+      env.DB.prepare("DELETE FROM google WHERE user_id=?").bind(u.id),
       env.DB.prepare("DELETE FROM users WHERE id=?").bind(u.id),
     ]);
     return json({ ok: true }, 200, { "set-cookie": sessionCookie(req, "", 0) });

@@ -201,6 +201,25 @@ body.dragging .endz{display:block}
 .endz::after{content:"";position:absolute;left:4px;right:4px;top:50%;height:3px;margin-top:-1.5px;border-radius:3px;background:var(--pc,var(--accent));opacity:0;transition:opacity .12s}
 .endz.zover{outline:none;background:none}
 .endz.zover::after{opacity:1}
+/* Google Calendar */
+.row.gev{display:flex;align-items:center;gap:10px;min-height:34px;margin:3px 0;padding:4px 10px 4px 34px;border-radius:9px;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 8%,transparent) 0 8px,transparent 8px 16px);border:1px dashed color-mix(in srgb,var(--muted) 40%,transparent);color:var(--muted);cursor:default}
+.row.gev .gtt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:500}
+.row.gev .gtm{font:500 12px var(--mono);white-space:nowrap}
+.row.gev .gtag{font:600 10px var(--body);letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.gbtn{display:inline-flex;align-items:center;gap:10px;padding:9px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:600 14px var(--body);text-decoration:none}
+.gbtn span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:conic-gradient(#EA4335 0 25%,#FBBC05 0 50%,#34A853 0 75%,#4285F4 0);color:#fff;font-weight:800;font-size:12px}
+.gbtn:hover{border-color:var(--accent)}
+.gcon{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.gchk{display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer}
+.gchk input{margin-top:3px}
+.gmsg{margin:6px 0}
+.gcols summary{cursor:pointer;font-weight:600;margin:8px 0}
+.gcrow{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+.gcrow .gcn{width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gcrow select{flex:1;max-width:220px}
+.gsw{width:14px;height:14px;border-radius:4px;flex:none}
+.gar{color:var(--muted)}
+@media (max-width:760px){.row.gev{padding-left:10px}}
 .pm{position:absolute;z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:8px;display:flex;flex-direction:column;gap:2px;min-width:200px}
 .pm button{border:none;background:none;text-align:left;padding:7px 10px;border-radius:6px}
 .pm button:hover{background:var(--soft)}
@@ -904,6 +923,10 @@ details.synth .sg{margin-top:14px}
     <p class="note">Toca una hora para cambiarla y confirma con <b>Guardar</b>. <span id="wkMsg" role="status" style="font-weight:500"></span></p>
   </section>
 
+  <section class="panel lp" aria-label="Google Calendar">
+    <div class="head"><h2>Google Calendar</h2></div>
+    <div id="gcalBody"><p class="note">Cargando…</p></div>
+  </section>
   <section class="panel lp" aria-label="Etiquetas">
     <div class="head"><h2>Etiquetas</h2><span class="note">Tipo de trabajo de cada tarea</span></div>
     <div id="tags" style="display:flex;flex-direction:column;gap:8px"></div>
