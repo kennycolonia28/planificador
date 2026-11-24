@@ -1294,14 +1294,31 @@ function renderWeek(){
     ch.appendChild(a);W.appendChild(r)});
   const wt=$("wkTot");if(wt)wt.textContent="· Total semana: "+fmt(capWeek())+" h";
 }
+let catDrag=null;
+/* mueve una categoría antes (o después) de otra y le pone la prioridad del grupo donde cae */
+function catMove(id,refId,after,lvl){const C=S.cats,i=C.findIndex(x=>x.id===id);if(i<0)return;const [c]=C.splice(i,1);const old=c.lvl;c.lvl=lvl;
+  let at=refId?C.findIndex(x=>x.id===refId):-1;if(at<0){const j=C.findIndex(x=>x.lvl===lvl);at=j<0?C.length:j}else if(after)at++;
+  C.splice(at,0,c);catDrag=null;commit();if(old!==lvl)flash(`«${c.name}» ahora es Prioridad ${lvl}.`)}
 function renderCats(){
-  const C=$("cats");C.innerHTML=`<p class="note">El orden de esta lista es la <b>importancia</b>: primero manda la prioridad (1, 2, 3) y, dentro de cada prioridad, la que está más arriba es más importante. Usa ↑ ↓ para reordenar.</p>`;
+  const C=$("cats");C.innerHTML=`<p class="note">El orden de esta lista es la <b>importancia</b>: primero manda la prioridad (1, 2, 3) y, dentro de cada prioridad, la que está más arriba es más importante. Arrastra desde <b>⋮⋮</b> para reordenar (si la sueltas en otro grupo, cambia de prioridad) o usa ↑ ↓.</p>`;
   [1,2,3].forEach(lv=>{const g=S.cats.filter(c=>c.lvl===lv);if(!g.length)return;
     const h=document.createElement("div");h.className="sep";h.style.margin="6px 0 0";h.innerHTML=`<span class="pdot p${lv}">P${lv}</span> Prioridad ${lv}`;C.appendChild(h);
+    /* soltar sobre el título de una prioridad: queda primera de ese grupo */
+    h.addEventListener("dragover",ev=>{if(!catDrag)return;ev.preventDefault();h.classList.add("cov")});
+    h.addEventListener("dragleave",()=>h.classList.remove("cov"));
+    h.addEventListener("drop",ev=>{if(!catDrag)return;ev.preventDefault();h.classList.remove("cov");catMove(catDrag,g[0]&&g[0].id!==catDrag?g[0].id:null,false,lv)});
     g.forEach((c,k)=>{const d=document.createElement("div");d.className="cat cato";
-    d.innerHTML=`<span class="ord">${k+1}</span><span class="pl"><input type="color" value="${c.color}" aria-label="Color"></span><input class="cn" value="${esc(c.name)}" aria-label="Nombre"><select aria-label="Prioridad">${[1,2,3].map(n=>`<option value="${n}"${n==c.lvl?" selected":""}>Prioridad ${n}</option>`).join("")}</select><button type="button" class="pj${c.proj?" on":""}" aria-pressed="${!!c.proj}" title="${c.proj?"Es un proyecto: aparece en la pestaña Proyectos":"Marcar como proyecto (aparece en la pestaña Proyectos)"}"><span class="pji" aria-hidden="true">◆</span><span class="pjt">Proyecto</span></button><span class="mv"><button class="up" aria-label="Subir" ${k?"":"disabled"}>↑</button><button class="dw" aria-label="Bajar" ${k<g.length-1?"":"disabled"}>↓</button></span><button class="x" aria-label="Borrar categoría">×</button>`;
+    d.dataset.id=c.id;
+    d.innerHTML=`<span class="ord" title="Arrastra para reordenar"><span class="cgrip" aria-hidden="true">⋮⋮</span>${k+1}</span><span class="pl"><input type="color" value="${c.color}" aria-label="Color"></span><input class="cn" value="${esc(c.name)}" aria-label="Nombre"><select aria-label="Prioridad">${[1,2,3].map(n=>`<option value="${n}"${n==c.lvl?" selected":""}>Prioridad ${n}</option>`).join("")}</select><button type="button" class="pj${c.proj?" on":""}" aria-pressed="${!!c.proj}" title="${c.proj?"Es un proyecto: aparece en la pestaña Proyectos":"Marcar como proyecto (aparece en la pestaña Proyectos)"}"><span class="pji" aria-hidden="true">◆</span><span class="pjt">Proyecto</span></button><span class="mv"><button class="up" aria-label="Subir" ${k?"":"disabled"}>↑</button><button class="dw" aria-label="Bajar" ${k<g.length-1?"":"disabled"}>↓</button></span><button class="x" aria-label="Borrar categoría">×</button>`;
     const sw=o=>{const a=S.cats.indexOf(c),b=S.cats.indexOf(g[k+o]);[S.cats[a],S.cats[b]]=[S.cats[b],S.cats[a]];commit()};
     d.querySelector(".up").onclick=()=>sw(-1);d.querySelector(".dw").onclick=()=>sw(1);
+    /* arrastrar desde ⋮⋮: una línea azul marca dónde queda; en otro grupo toma esa prioridad */
+    d.querySelector(".ord").addEventListener("mousedown",()=>d.draggable=true);
+    d.addEventListener("dragstart",ev=>{catDrag=c.id;d.classList.add("drag");ev.dataTransfer.effectAllowed="move";try{ev.dataTransfer.setData("text/plain",c.id)}catch(_){}});
+    d.addEventListener("dragend",()=>{catDrag=null;d.draggable=false;d.classList.remove("drag");C.querySelectorAll(".cato,.sep").forEach(x=>x.classList.remove("ovt","ovb","cov"))});
+    d.addEventListener("dragover",ev=>{if(!catDrag||catDrag===c.id)return;ev.preventDefault();const b=d.getBoundingClientRect(),low=ev.clientY>b.top+b.height/2;d.classList.toggle("ovb",low);d.classList.toggle("ovt",!low)});
+    d.addEventListener("dragleave",()=>d.classList.remove("ovt","ovb"));
+    d.addEventListener("drop",ev=>{if(!catDrag||catDrag===c.id)return;ev.preventDefault();const low=d.classList.contains("ovb");d.classList.remove("ovt","ovb");catMove(catDrag,c.id,low,c.lvl)});
     d.querySelector("input[type=color]").onchange=e=>{c.color=e.target.value;commit()};
     d.querySelector(".cn").onchange=e=>{c.name=e.target.value.trim()||c.name;commit()};
     d.querySelector("select").onchange=e=>{c.lvl=+e.target.value;commit()};

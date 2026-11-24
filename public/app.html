@@ -292,17 +292,23 @@ details[open].panel summary h2::before{content:"▾ "}
 .pj.on .pji{opacity:1}
 .cvpjempty{padding:28px 8px;text-align:center}
 .cvpjempty .pj{margin:0 2px;vertical-align:middle}
-.cato .ord{font:600 12px var(--mono);color:var(--muted);text-align:center}
+.cato .ord{font:600 12px var(--mono);color:var(--muted);text-align:center;cursor:grab;user-select:none;white-space:nowrap}
+.cato .cgrip{opacity:.45;letter-spacing:-2px;margin-right:3px}
+.cato .ord:hover .cgrip{opacity:1}
+.cato.drag{opacity:.4}
+.cato.ovt{box-shadow:inset 0 2px 0 var(--accent)}
+.cato.ovb{box-shadow:inset 0 -2px 0 var(--accent)}
+#cats .sep.cov{background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:6px}
 .cato .mv{display:flex;gap:2px}
 .cato .mv button{padding:3px 7px;font-size:13px}
 .cato .mv button:disabled{opacity:.3;cursor:default}
 /* categorías: una sola línea por fila, compacta */
 #cats{gap:4px!important}
-.cato{grid-template-columns:18px 40px minmax(0,1fr) 128px 96px 54px 22px;gap:6px}
+.cato{grid-template-columns:30px 40px minmax(0,1fr) 128px 96px 54px 22px;gap:6px}
 .cato input:not([type=color]),.cato select{padding:4px 8px;font-size:13px}
 .cato input[type=color]{width:36px;height:26px;padding:1px}
 .cato .mv button{padding:2px 6px}
-@media (max-width:760px){.cato{grid-template-columns:14px 30px minmax(0,1fr) 78px 30px 50px 20px;gap:4px}.cato .pj{padding:4px 0;width:28px}.cato .pj .pjt{display:none}.cato .pj .pji{font-size:12px}.cato select{grid-column:auto;font-size:12px;padding:4px}}
+@media (max-width:760px){.cato{grid-template-columns:14px 30px minmax(0,1fr) 78px 30px 50px 20px;gap:4px}.cato .cgrip{display:none}.cato .pj{padding:4px 0;width:28px}.cato .pj .pjt{display:none}.cato .pj .pji{font-size:12px}.cato select{grid-column:auto;font-size:12px;padding:4px}}
 .pvh .ln.tgl{grid-template-columns:128px minmax(0,1fr) auto}
 .pvh .ln.tgl .tg{justify-self:start;font-size:11.5px;padding:2px 9px;max-width:128px;overflow:hidden;text-overflow:ellipsis}
 .vf{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
