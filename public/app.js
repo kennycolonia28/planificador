@@ -1579,6 +1579,7 @@ function renderProjBoard(box,plan){
     el.querySelector(".pjst").onchange=e=>setStage(id,e.target.value);
     el.addEventListener("dragstart",ev=>{if(ev.target.closest("input,select,button")){ev.preventDefault();return}pjDrag=id;el.classList.add("drag");ev.dataTransfer.effectAllowed="move";try{ev.dataTransfer.setData("text/plain",id)}catch(_){}});
     el.addEventListener("dragend",()=>{pjDrag=null;el.classList.remove("drag");box.querySelectorAll(".pjcol").forEach(x=>x.classList.remove("ov"))});
+    el.addEventListener("click",ev=>{if(ev.target.closest("input,select,button,form,a"))return;pjOpen(id)});
     const f=el.querySelector(".pjadd");if(f)f.onsubmit=e=>{e.preventDefault();const tx=f.querySelector(".pjtx").value.trim(),mn=parseInt(f.querySelector(".pjmn").value);
       if(!tx){f.querySelector(".pjtx").focus();return}if(!(mn>0)){f.querySelector(".pjmn").focus();return}
       const c=S.cats.find(x=>String(x.id)===String(id));catTouch(c.id);
@@ -1588,3 +1589,50 @@ function renderProjBoard(box,plan){
     col.addEventListener("dragover",ev=>{if(!pjDrag)return;ev.preventDefault();col.classList.add("ov")});
     col.addEventListener("dragleave",ev=>{if(!col.contains(ev.relatedTarget))col.classList.remove("ov")});
     col.addEventListener("drop",ev=>{if(!pjDrag)return;ev.preventDefault();col.classList.remove("ov");const id=pjDrag;pjDrag=null;setStage(id,col.dataset.st)})})}
+
+
+/* ---------- ventana de detalle de un proyecto ---------- */
+let pjCur=null;
+function pjOpen(id){pjCur=String(id);let dlg=$("pjdlg");
+  if(!dlg){dlg=document.createElement("dialog");dlg.id="pjdlg";dlg.className="pjdlg";document.body.appendChild(dlg);
+    dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});dlg.addEventListener("close",()=>{pjCur=null})}
+  pjFill();if(!dlg.open)dlg.showModal()}
+function pjFill(){const dlg=$("pjdlg");if(!dlg||!pjCur)return;const c=S.cats.find(x=>String(x.id)===pjCur);if(!c){dlg.close();return}
+  const plan=schedule(),isH=t=>plan[t.id]&&plan[t.id].o===0,now=Date.now();
+  const mine=S.tasks.filter(t=>!t.rt&&!t.sep&&t.cat===c.id),open=mine.filter(t=>!t.done),dn=mine.filter(t=>t.done);
+  const cq=lastSec.cola||[],ord=t=>isH(t)?plan[t.id].s:1e5+(cq.indexOf(t.id)<0?9e4:cq.indexOf(t.id));
+  open.sort((a,b)=>ord(a)-ord(b));
+  const dAt=t=>t.doneAt||(t.doneOn?Date.parse(t.doneOn+"T12:00:00"):0);dn.sort((a,b)=>dAt(b)-dAt(a));
+  const last=dn.length?dAt(dn[0]):0,days=last?Math.floor((now-last)/864e5):null,tot=open.length+dn.length,pct=tot?Math.round(dn.length/tot*100):0;
+  const pend=open.reduce((a,t)=>a+(t.min>0?t.min:0),0),wk=dn.filter(t=>weekIdx(t.doneOn)===0).reduce((a,t)=>a+(t.min>0?t.min:0),0);
+  const st=PSTG.some(x=>x[0]===c.stage)?c.stage:"run";
+  const fd=t=>{const d=dAt(t);if(!d)return"";const x=new Date(d);return x.toLocaleDateString("es",{day:"numeric",month:"short"})};
+  dlg.style.setProperty("--cc",c.color);dlg.style.setProperty("--ct",cvInk(c.color));
+  dlg.innerHTML=`<header class="pjdh"><h3>${esc(c.name)}</h3><select class="pjdst" aria-label="Etapa">${PSTG.map(x=>`<option value="${x[0]}"${x[0]===st?" selected":""}>${x[1]}</option>`).join("")}</select><button type="button" class="pjdx" aria-label="Cerrar">✕</button></header>
+    <div class="pjdb">
+      <div class="pjds">
+        <div><b>${dn.length}/${tot}</b><span>hechas · ${pct}%</span></div>
+        <div><b>${fmt(pend)} h</b><span>pendientes</span></div>
+        <div><b>${days==null?"—":days===0?"Hoy":days+" d"}</b><span>${days==null?"sin avances aún":"desde el último avance"}</span></div>
+        <div><b>${fmt(wk)} h</b><span>invertidas esta semana</span></div>
+      </div>
+      ${tot?`<div class="pjbar big"><i style="width:${pct}%"></i></div>`:""}
+      <label class="pjdl">Objetivo / notas del proyecto<textarea class="pjdn" rows="2" placeholder="¿Qué quieres lograr con este proyecto? ¿Para cuándo?">${esc(c.note||"")}</textarea></label>
+      <h4>Pendientes <span>${open.length}</span></h4>
+      <ul class="pjdt">${open.map(t=>`<li data-id="${t.id}"><input type="checkbox" class="pjck" aria-label="Marcar como hecha"><span class="tx">${md(t.text)}</span><span class="mn">${t.min>0?t.min+" min":""}</span><span class="wh">${isH(t)?"hoy "+hm(plan[t.id].s):"Cola"}</span>${isH(t)?"":`<button type="button" class="ghost sm pjup" title="Subir a Hoy">↑ Hoy</button>`}</li>`).join("")||`<li class="none">${st==="done"?"Proyecto terminado ✓":"Sin tareas pendientes. Agrega el siguiente paso abajo."}</li>`}</ul>
+      <form class="pjdadd"><input class="pjtx" placeholder="Nueva tarea del proyecto" maxlength="200" aria-label="Nueva tarea"><input class="pjmn" type="number" min="1" value="30" aria-label="Minutos"><span class="pjmu">min</span><button type="submit" class="primary sm">Agregar a Cola</button></form>
+      ${dn.length?`<details class="pjdd"><summary>Últimas hechas (${dn.length})</summary><ul class="pjdt done">${dn.slice(0,15).map(t=>`<li data-id="${t.id}"><input type="checkbox" class="pjck" checked aria-label="Volver a pendiente"><span class="tx">${md(t.text)}</span><span class="mn">${t.min>0?t.min+" min":""}</span><span class="wh">${fd(t)}</span></li>`).join("")}</ul></details>`:""}
+    </div>`;
+  const keepDd=dlg.dataset.dd==="1";if(keepDd){const d=dlg.querySelector(".pjdd");if(d)d.open=true}
+  const dd=dlg.querySelector(".pjdd");if(dd)dd.ontoggle=()=>{dlg.dataset.dd=dd.open?"1":""};
+  const redo=()=>{commit();pjFill()};
+  dlg.querySelector(".pjdx").onclick=()=>dlg.close();
+  dlg.querySelector(".pjdst").onchange=e=>{c.stage=e.target.value;redo();flash(`«${c.name}» → ${PSTG.find(x=>x[0]===c.stage)[1]}`)};
+  let nt;dlg.querySelector(".pjdn").oninput=e=>{c.note=e.target.value;clearTimeout(nt);nt=setTimeout(save,600)};
+  dlg.querySelectorAll(".pjck").forEach(ck=>ck.onchange=()=>{const t=S.tasks.find(x=>x.id===ck.closest("li").dataset.id);if(!t)return;
+    t.done=ck.checked;t.doneOn=t.done?dk():null;t.doneAt=t.done?Date.now():null;t.doneCat=t.done?t.cat:null;redo();if(t.done)flash("Hecha: "+plain(t.text))});
+  dlg.querySelectorAll(".pjup").forEach(b=>b.onclick=()=>{const id=b.closest("li").dataset.id;if(moveTo(id,"hoy",null))pjFill()});
+  const f=dlg.querySelector(".pjdadd");f.onsubmit=e=>{e.preventDefault();const tx=f.querySelector(".pjtx").value.trim(),mn=parseInt(f.querySelector(".pjmn").value);
+    if(!tx){f.querySelector(".pjtx").focus();return}if(!(mn>0)){f.querySelector(".pjmn").focus();return}
+    catTouch(c.id);S.tasks.push({id:uid(),cat:c.id,text:tx,min:mn,tag:null,done:false,doneOn:null,createdAt:Date.now(),seq:nextSeq(),doneAt:null,plan0:null,pin:null});
+    redo();const i=$("pjdlg").querySelector(".pjtx");if(i)i.focus();flash("Tarea agregada a Cola.")}}
