@@ -891,7 +891,8 @@ function cvApplyView(){const v0=cvGet("view","lista"),v=v0==="cat"||v0==="gantt"
   const p=document.querySelector(".panel.main");if(p)p.dataset.v=v;
   document.querySelectorAll(".vtabs button").forEach(b=>{const on=b.dataset.v===v;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)})}
 document.querySelectorAll(".vtabs button").forEach(b=>b.onclick=()=>{const was=cvGet("view","lista");cvSet("view",b.dataset.v);cvApplyView();if(b.dataset.v==="gantt"){gScrollTo=gScrollTo??"hoy";renderGantt()}
-  if((b.dataset.v==="cat"||b.dataset.v==="proy")&&was!==b.dataset.v)renderCatView(schedule())});
+  /* al cambiar a Categorías o Proyectos se redibuja siempre (si quedó "pegado" un arrastre o un cambio de altura, se suelta) */
+  if(b.dataset.v==="cat"||b.dataset.v==="proy"){cvDrag=null;cvRz=null;const cb=$("catview");if(cb)cb.classList.remove("cvresizing");renderCatView(schedule())}});
 cvApplyView();
 /* texto claro u oscuro según el color de la categoría, para que siempre se lea sobre la barra */
 const cvInk=hex=>{let h=String(hex||"").replace("#","");if(h.length===3)h=h.split("").map(x=>x+x).join("");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return(0.299*r+0.587*g+0.114*b)>165?"#1f2937":"#ffffff"};
