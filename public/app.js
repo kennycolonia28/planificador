@@ -1633,7 +1633,7 @@ function pjFill(){const dlg=$("pjdlg");if(!dlg||!pjCur)return;const c=S.cats.fin
       ${tot?`<div class="pjbar big"><i style="width:${pct}%"></i></div>`:""}
       <label class="pjdl">Objetivo / notas del proyecto<textarea class="pjdn" rows="2" placeholder="¿Qué quieres lograr con este proyecto? ¿Para cuándo?">${esc(c.note||"")}</textarea></label>
       <h4>Pendientes <span>${open.length}</span></h4>
-      <ul class="pjdt">${open.map(t=>`<li data-id="${t.id}"><input type="checkbox" class="pjck" aria-label="Marcar como hecha"><span class="tx">${md(t.text)}</span><span class="mn">${t.min>0?t.min+" min":""}</span><span class="wh">${isH(t)?"hoy "+hm(plan[t.id].s):"Cola"}</span>${isH(t)?"":`<button type="button" class="ghost sm pjup" title="Subir a Hoy">↑ Hoy</button>`}</li>`).join("")||`<li class="none">${st==="done"?"Proyecto terminado ✓":"Sin tareas pendientes. Agrega el siguiente paso abajo."}</li>`}</ul>
+      <ul class="pjdt">${open.map(t=>`<li data-id="${t.id}"><input type="checkbox" class="pjck" aria-label="Marcar como hecha"><div class="tx rtx pjed" contenteditable="true" role="textbox" spellcheck="false" aria-label="Tarea" title="Toca para editar">${md(t.text)}</div><input class="pjmi" type="number" min="0" step="5" value="${t.min>0?t.min:""}" placeholder="?" aria-label="Minutos" title="Minutos"><span class="mu">min</span><span class="wh">${isH(t)?"hoy "+hm(plan[t.id].s):"Cola"}</span>${isH(t)?"":`<button type="button" class="ghost sm pjup" title="Subir a Hoy">↑ Hoy</button>`}</li>`).join("")||`<li class="none">${st==="done"?"Proyecto terminado ✓":"Sin tareas pendientes. Agrega el siguiente paso abajo."}</li>`}</ul>
       <form class="pjdadd"><input class="pjtx" placeholder="Nueva tarea del proyecto" maxlength="200" aria-label="Nueva tarea"><input class="pjmn" type="number" min="1" value="30" aria-label="Minutos"><span class="pjmu">min</span><button type="submit" class="primary sm">Agregar a Cola</button></form>
       ${dn.length?`<details class="pjdd"><summary>Últimas hechas (${dn.length})</summary><ul class="pjdt done">${dn.slice(0,15).map(t=>`<li data-id="${t.id}"><input type="checkbox" class="pjck" checked aria-label="Volver a pendiente"><span class="tx">${md(t.text)}</span><span class="mn">${t.min>0?t.min+" min":""}</span><span class="wh">${fd(t)}</span></li>`).join("")}</ul></details>`:""}
     </div>`;
@@ -1645,6 +1645,9 @@ function pjFill(){const dlg=$("pjdlg");if(!dlg||!pjCur)return;const c=S.cats.fin
   let nt;dlg.querySelector(".pjdn").oninput=e=>{c.note=e.target.value;clearTimeout(nt);nt=setTimeout(save,600)};
   dlg.querySelectorAll(".pjck").forEach(ck=>ck.onchange=()=>{const t=S.tasks.find(x=>x.id===ck.closest("li").dataset.id);if(!t)return;
     t.done=ck.checked;t.doneOn=t.done?dk():null;t.doneAt=t.done?Date.now():null;t.doneCat=t.done?t.cat:null;redo();if(t.done)flash("Hecha: "+plain(t.text))});
+  /* editar texto y minutos de cada tarea pendiente, igual que en la lista */
+  dlg.querySelectorAll(".pjed").forEach(el=>{const t=S.tasks.find(x=>x.id===el.closest("li").dataset.id);if(!t)return;wireRtx(el,t);el.addEventListener("blur",()=>render())});
+  dlg.querySelectorAll(".pjmi").forEach(inp=>inp.onchange=()=>{const t=S.tasks.find(x=>x.id===inp.closest("li").dataset.id);if(!t)return;const v=parseInt(inp.value);t.min=v>0?v:0;redo()});
   dlg.querySelectorAll(".pjup").forEach(b=>b.onclick=()=>{const id=b.closest("li").dataset.id;if(moveTo(id,"hoy",null))pjFill()});
   const f=dlg.querySelector(".pjdadd");f.onsubmit=e=>{e.preventDefault();const tx=f.querySelector(".pjtx").value.trim(),mn=parseInt(f.querySelector(".pjmn").value);
     if(!tx){f.querySelector(".pjtx").focus();return}if(!(mn>0)){f.querySelector(".pjmn").focus();return}
