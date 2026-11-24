@@ -215,10 +215,16 @@ function pieBlock(title,tasks,done,cap,extra){
 function inkOn(hex){const n=parseInt((hex||"#999999").slice(1),16),f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)},L=.2126*f(n>>16&255)+.7152*f(n>>8&255)+.0722*f(n&255);return L>.4?"#1A1F26":"#FFFFFF"}
 const lv=c=>Math.min(3,Math.max(1,c.lvl|0||3));
 const pdot=c=>`<span class="pdot p${lv(c)}" title="Prioridad ${lv(c)}" aria-label="Prioridad ${lv(c)}">P${lv(c)}</span>`;
-/* lista de categorías: si hay proyectos, van primero en su propio grupo; luego las demás (cada grupo en el orden de Categorías) */
+/* lista de categorías: PROYECTOS primero, luego RECIENTES (las 5 que usaste últimamente) y al final OTRAS por prioridad (P1, P2, P3) */
+const catTouch=id=>{if(!id)return;S.catUse={...(S.catUse||{}),[id]:Date.now()}};
+function catRecent(){const t={...(S.catUse||{})};
+  [...S.tasks.filter(x=>!x.rt&&!x.sep),...(S.resp||[]).filter(x=>!x.sep)].forEach(x=>{if(x.cat&&x.createdAt>(t[x.cat]||0))t[x.cat]=x.createdAt});return t}
 function catOpts(sel){const o=c=>`<option value="${c.id}"${c.id===sel?" selected":""}>${esc(c.name)}</option>`;
-  const pj=S.cats.filter(c=>c.proj),rest=S.cats.filter(c=>!c.proj);
-  return pj.length?`<optgroup label="— PROYECTOS —">${pj.map(o).join("")}</optgroup><optgroup label="— OTRAS —">${rest.map(o).join("")}</optgroup>`:S.cats.map(o).join("")}
+  const pj=S.cats.filter(c=>c.proj),rest=S.cats.filter(c=>!c.proj),R=catRecent();
+  const rec=rest.filter(c=>R[c.id]).sort((a,b)=>R[b.id]-R[a.id]).slice(0,5),ids=new Set(rec.map(c=>c.id));
+  const oth=rest.filter(c=>!ids.has(c.id)).map((c,i)=>[c,i]).sort((a,b)=>a[0].lvl-b[0].lvl||a[1]-b[1]).map(x=>x[0]);
+  const grp=(l,a)=>a.length?`<optgroup label="${l}">${a.map(o).join("")}</optgroup>`:"";
+  return grp("— PROYECTOS —",pj)+grp("— RECIENTES —",rec)+grp(pj.length||rec.length?"— OTRAS —":"Categorías",oth)}
 let dragId=null,dragR=null;
 let lastSec={hoy:[],cola:[]};
 const ZN={hoy:"Hoy",cola:"Cola"};
@@ -395,7 +401,7 @@ function taskRow(t,when,zone){
   <button class="x" aria-label="Borrar tarea">×</button>${metaTask(t)}`;
   const q=s=>d.querySelector(s);
   q(".dn").onclick=()=>{t.done=!t.done;t.doneOn=t.done?dk():null;t.doneAt=t.done?Date.now():null;t.doneCat=t.done?t.cat:null;commit();if(t.done)flash("Hecha: "+plain(t.text))};
-  q(".cs").onchange=e=>{t.cat=e.target.value;commit()};
+  q(".cs").onchange=e=>{t.cat=e.target.value;catTouch(t.cat);commit()};
   wireRtx(q(".txt"),t);
   q(".mins").onchange=e=>{const v=parseInt(e.target.value);t.min=v>0?v:0;commit()};
   q(".x").onclick=()=>askDel(`¿Borrar la tarea <b>«${esc(plain(t.text)||"sin texto")}»</b>?`,()=>{S.tasks=S.tasks.filter(x=>x.id!==t.id);commit();flashU("Tarea borrada.")});
@@ -473,7 +479,7 @@ function respRow(r){
   d.addEventListener("dragleave",()=>d.classList.remove("over"));
   d.addEventListener("drop",e=>{e.preventDefault();d.classList.remove("over");if(!dragR||dragR===r.id)return;
     const i=S.resp.findIndex(x=>x.id===dragR),m=S.resp.splice(i,1)[0];S.resp.splice(S.resp.findIndex(x=>x.id===r.id),0,m);dragR=null;commit()});
-  d.querySelector(".cs").onchange=e=>{r.cat=e.target.value;commit()};
+  d.querySelector(".cs").onchange=e=>{r.cat=e.target.value;catTouch(r.cat);commit()};
   wireRtx(d.querySelector(".txt"),r);
   d.querySelector(".x").onclick=()=>askDel(`¿Borrar <b>«${esc(plain(r.text)||"sin texto")}»</b> de Esperando respuesta?`,()=>{S.resp=S.resp.filter(x=>x.id!==r.id);commit();flashU("Borrado de Esperando respuesta.")});
   return d;
@@ -1328,6 +1334,7 @@ $("addForm").onsubmit=e=>{e.preventDefault();const txt=$("nTxt").value.trim();if
   if(/^-{3,}$/.test(txt)){S.tasks.push(newSep("hoy"));$("nTxt").value="";$("nMin").value="";$("nMin").classList.remove("bad");commit();$("nTxt").focus();flash("Separador agregado al final de Hoy. Arrástralo con ⋮⋮ a donde quieras.");return}
   const mn=parseInt($("nMin").value);
   if(!$("nRp").checked&&!(mn>0)){const i=$("nMin");i.classList.add("bad");i.focus();flash("⚠ Pon los minutos de la tarea: es obligatorio y debe ser un número mayor que 0.");i.addEventListener("input",()=>i.classList.remove("bad"),{once:true});return}
+  catTouch($("nCat").value);
   if($("nRp").checked)S.resp.push({id:uid(),cat:$("nCat").value,text:txt,done:false,createdAt:Date.now(),seq:nextSeq(),doneAt:null});
   else S.tasks.push({id:uid(),cat:$("nCat").value,text:txt,min:mn,tag:$("nTag").value||null,done:false,doneOn:null,createdAt:Date.now(),seq:nextSeq(),doneAt:null,plan0:null,pin:dk(0)});
   $("nTxt").value="";$("nMin").value="";commit();$("nTxt").focus()};
