@@ -1000,6 +1000,7 @@ function renderCatView(plan){
   const busy=cvDrag||cvRz;if(busy){busy.pend=plan;return}
   /* pestaña Proyectos: mismas tarjetas, solo las categorías marcadas como proyecto, con su avance total (no solo esta semana) */
   const PJ=cvGet("view","lista")==="proy";
+  if(PJ)return renderProjBoard(box,plan);
   const mine0=S.tasks.filter(t=>!t.rt),ids=PJ?cvOrder(S.cats.filter(c=>c.proj).map(c=>c.id)):cvOrder(cvCats());
   if(!ids.length){box.innerHTML=PJ?`<div class="cvpjempty"><p><b>Todavía no marcaste ningún proyecto.</b></p><p class="note">En <b>Categorías y colores</b>, toca <span class="pj on" style="pointer-events:none"><span class="pji">◆</span><span class="pjt">Proyecto</span></span> en las categorías que son proyectos. Aquí verás solo esas, con su avance.</p></div>`:`<p class="cvempty">Todavía no hay tareas para mostrar.</p>`;return}
   const isH=t=>plan[t.id]&&plan[t.id].o===0;
@@ -1546,3 +1547,43 @@ function renderGcal(){const P=$("gcalBody");if(!P)return;const g=S.gcal||{},rd=g
   G.poll=setInterval(gLoad,5*60000);
   document.addEventListener("visibilitychange",()=>{if(!document.hidden&&G.connected)gLoad()});
 })();
+
+
+/* ================= Proyectos: tablero por etapa =================
+   Cada categoría marcada como proyecto es una tarjeta. Columnas = etapa (se guarda en la categoría, c.stage).
+   La tarjeta muestra su siguiente paso (la próxima tarea pendiente) y hace cuántos días completaste algo del proyecto. */
+const PSTG=[["idea","Idea","Lo quieres hacer, aún sin plan"],["plan","Planificando","Definiendo pasos"],["run","En marcha","Avanzando ahora"],["pause","En pausa","Detenido por ahora"],["done","Terminado","Listo"]];
+let pjDrag=null;
+function renderProjBoard(box,plan){
+  const P=S.cats.filter(c=>c.proj);
+  if(!P.length){box.innerHTML=`<div class="cvpjempty"><p><b>Todavía no marcaste ningún proyecto.</b></p><p class="note">En <b>Categorías y colores</b>, toca <span class="pj on" style="pointer-events:none"><span class="pji">◆</span><span class="pjt">Proyecto</span></span> en las categorías que son proyectos.</p></div>`;return}
+  const isH=t=>plan[t.id]&&plan[t.id].o===0,now=Date.now();
+  const card=c=>{const st=PSTG.some(x=>x[0]===c.stage)?c.stage:"run",mine=S.tasks.filter(t=>!t.rt&&!t.sep&&t.cat===c.id);
+    const open=mine.filter(t=>!t.done),dn=mine.filter(t=>t.done),tot=open.length+dn.length,pct=tot?Math.round(dn.length/tot*100):0,pend=open.reduce((a,t)=>a+(t.min>0?t.min:0),0);
+    const next=open.filter(isH).sort((a,b)=>plan[a.id].s-plan[b.id].s)[0]||open.filter(t=>!isH(t))[0];
+    const last=dn.reduce((m,t)=>Math.max(m,t.doneAt||(t.doneOn?Date.parse(t.doneOn+"T12:00:00"):0)),0),days=last?Math.floor((now-last)/864e5):null;
+    const live=st==="run"||st==="plan";
+    const dot=!live?"":days==null?`<span class="pjd n" title="Todavía no completaste ninguna tarea de este proyecto">○ Sin avances aún</span>`:`<span class="pjd ${days<3?"g":days<=7?"y":"r"}" title="Última tarea completada">${days<3?"🟢":days<=7?"🟡":"🔴"} ${days===0?"Avanzaste hoy":days===1?"Hace 1 día":`Hace ${days} días`}</span>`;
+    const nx=next?`<div class="pjn"><span class="pjl">Siguiente paso</span><span class="pjt2" title="${esc(plain(next.text))}">${md(next.text)}</span><span class="pjw">${next.min>0?next.min+" min · ":""}${isH(next)?"hoy "+hm(plan[next.id].s):"en Cola"}</span></div>`
+      :st==="done"?`<div class="pjn ok">Proyecto terminado ✓</div>`
+      :`<div class="pjn warn${live?"":" soft"}"><span>${live?"⚠ Sin siguiente paso":"Sin tareas pendientes"}</span><form class="pjadd"><input class="pjtx" placeholder="¿Cuál es el siguiente paso?" maxlength="200" aria-label="Siguiente paso de ${esc(c.name)}"><span class="pjar"><input class="pjmn" type="number" min="1" value="30" aria-label="Minutos"><span class="pjmu">min</span><button type="submit" class="primary sm" title="Agregar a Cola" aria-label="Agregar siguiente paso">+</button></span></form></div>`;
+    return`<article class="pjc" draggable="true" data-id="${esc(String(c.id))}" style="--cc:${c.color};--ct:${cvInk(c.color)}">
+      <h4><span class="pjnm" title="${esc(c.name)}">${esc(c.name)}</span></h4>
+      <div class="pjb">${nx}<div class="pjm">${dot}<span class="pjc2">${dn.length}/${tot} hechas${pend?` · ${fmt(pend)} h pend.`:""}</span></div>${tot?`<div class="pjbar"><i style="width:${pct}%"></i></div>`:""}<select class="pjst" aria-label="Etapa de ${esc(c.name)}" title="Cambiar etapa (también puedes arrastrar la tarjeta)">${PSTG.map(x=>`<option value="${x[0]}"${x[0]===st?" selected":""}>${x[1]}</option>`).join("")}</select></div></article>`};
+  box.innerHTML=`<div class="cvtop"><span>Arrastra cada proyecto a su etapa · cada tarjeta muestra su siguiente paso y hace cuánto avanzaste (🟢 menos de 3 días · 🟡 3 a 7 · 🔴 más de 7)</span></div>
+    <div class="pjboard">${PSTG.map(([k,n,h])=>{const L=P.filter(c=>(PSTG.some(x=>x[0]===c.stage)?c.stage:"run")===k);
+      return`<section class="pjcol" data-st="${k}" aria-label="${n}"><header><b>${n}</b><span>${L.length}</span></header><p class="pjh">${h}</p><div class="pjlist">${L.map(card).join("")||`<p class="pjempty">Arrastra aquí</p>`}</div></section>`}).join("")}</div>`;
+  const setStage=(id,st)=>{const c=S.cats.find(x=>String(x.id)===String(id));if(!c||c.stage===st)return;c.stage=st;commit();flash(`«${c.name}» → ${PSTG.find(x=>x[0]===st)[1]}`)};
+  box.querySelectorAll(".pjc").forEach(el=>{const id=el.dataset.id;
+    el.querySelector(".pjst").onchange=e=>setStage(id,e.target.value);
+    el.addEventListener("dragstart",ev=>{if(ev.target.closest("input,select,button")){ev.preventDefault();return}pjDrag=id;el.classList.add("drag");ev.dataTransfer.effectAllowed="move";try{ev.dataTransfer.setData("text/plain",id)}catch(_){}});
+    el.addEventListener("dragend",()=>{pjDrag=null;el.classList.remove("drag");box.querySelectorAll(".pjcol").forEach(x=>x.classList.remove("ov"))});
+    const f=el.querySelector(".pjadd");if(f)f.onsubmit=e=>{e.preventDefault();const tx=f.querySelector(".pjtx").value.trim(),mn=parseInt(f.querySelector(".pjmn").value);
+      if(!tx){f.querySelector(".pjtx").focus();return}if(!(mn>0)){f.querySelector(".pjmn").focus();return}
+      const c=S.cats.find(x=>String(x.id)===String(id));catTouch(c.id);
+      S.tasks.push({id:uid(),cat:c.id,text:tx,min:mn,tag:null,done:false,doneOn:null,createdAt:Date.now(),seq:nextSeq(),doneAt:null,plan0:null,pin:null});
+      commit();flash(`Siguiente paso de ${c.name} agregado a Cola.`)}});
+  box.querySelectorAll(".pjcol").forEach(col=>{
+    col.addEventListener("dragover",ev=>{if(!pjDrag)return;ev.preventDefault();col.classList.add("ov")});
+    col.addEventListener("dragleave",ev=>{if(!col.contains(ev.relatedTarget))col.classList.remove("ov")});
+    col.addEventListener("drop",ev=>{if(!pjDrag)return;ev.preventDefault();col.classList.remove("ov");const id=pjDrag;pjDrag=null;setStage(id,col.dataset.st)})})}
