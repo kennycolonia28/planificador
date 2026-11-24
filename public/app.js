@@ -215,7 +215,10 @@ function pieBlock(title,tasks,done,cap,extra){
 function inkOn(hex){const n=parseInt((hex||"#999999").slice(1),16),f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)},L=.2126*f(n>>16&255)+.7152*f(n>>8&255)+.0722*f(n&255);return L>.4?"#1A1F26":"#FFFFFF"}
 const lv=c=>Math.min(3,Math.max(1,c.lvl|0||3));
 const pdot=c=>`<span class="pdot p${lv(c)}" title="Prioridad ${lv(c)}" aria-label="Prioridad ${lv(c)}">P${lv(c)}</span>`;
-function catOpts(sel){return S.cats.map(c=>`<option value="${c.id}"${c.id===sel?" selected":""}>${esc(c.name)}</option>`).join("")}
+/* lista de categorías: si hay proyectos, van primero en su propio grupo; luego las demás (cada grupo en el orden de Categorías) */
+function catOpts(sel){const o=c=>`<option value="${c.id}"${c.id===sel?" selected":""}>${esc(c.name)}</option>`;
+  const pj=S.cats.filter(c=>c.proj),rest=S.cats.filter(c=>!c.proj);
+  return pj.length?`<optgroup label="— PROYECTOS —">${pj.map(o).join("")}</optgroup><optgroup label="— OTRAS —">${rest.map(o).join("")}</optgroup>`:S.cats.map(o).join("")}
 let dragId=null,dragR=null;
 let lastSec={hoy:[],cola:[]};
 const ZN={hoy:"Hoy",cola:"Cola"};
