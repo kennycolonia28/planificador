@@ -873,10 +873,11 @@ const cvGet=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(CVKEY));return v
 const cvSet=(k,v)=>{try{const o=JSON.parse(localStorage.getItem(CVKEY))||{};o[k]=v;localStorage.setItem(CVKEY,JSON.stringify(o))}catch(e){}};
 /* todas las categorías que tienen tareas (pendientes o hechas esta semana), en el orden de Categorías */
 function cvCats(){const has=id=>S.tasks.some(t=>!t.rt&&t.cat===id&&(!t.done||weekIdx(t.doneOn)===0));return S.cats.map(c=>c.id).filter(has)}
-function cvApplyView(){const v0=cvGet("view","lista"),v=v0==="cat"||v0==="gantt"?v0:"lista";
+function cvApplyView(){const v0=cvGet("view","lista"),v=v0==="cat"||v0==="gantt"||v0==="proy"?v0:"lista";
   const p=document.querySelector(".panel.main");if(p)p.dataset.v=v;
   document.querySelectorAll(".vtabs button").forEach(b=>{const on=b.dataset.v===v;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)})}
-document.querySelectorAll(".vtabs button").forEach(b=>b.onclick=()=>{cvSet("view",b.dataset.v);cvApplyView();if(b.dataset.v==="gantt"){gScrollTo=gScrollTo??"hoy";renderGantt()}});
+document.querySelectorAll(".vtabs button").forEach(b=>b.onclick=()=>{const was=cvGet("view","lista");cvSet("view",b.dataset.v);cvApplyView();if(b.dataset.v==="gantt"){gScrollTo=gScrollTo??"hoy";renderGantt()}
+  if((b.dataset.v==="cat"||b.dataset.v==="proy")&&was!==b.dataset.v)renderCatView(schedule())});
 cvApplyView();
 /* texto claro u oscuro según el color de la categoría, para que siempre se lea sobre la barra */
 const cvInk=hex=>{let h=String(hex||"").replace("#","");if(h.length===3)h=h.split("").map(x=>x+x).join("");const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return(0.299*r+0.587*g+0.114*b)>165?"#1f2937":"#ffffff"};
@@ -983,12 +984,15 @@ const cvOrder=ids=>{const sv=cvGet("order",[]);if(!Array.isArray(sv))return ids;
 function renderCatView(plan){
   const box=$("catview");if(!box)return;
   const busy=cvDrag||cvRz;if(busy){busy.pend=plan;return}
-  const mine0=S.tasks.filter(t=>!t.rt),ids=cvOrder(cvCats());if(!ids.length){box.innerHTML=`<p class="cvempty">Todavía no hay tareas para mostrar.</p>`;return}
+  /* pestaña Proyectos: mismas tarjetas, solo las categorías marcadas como proyecto, con su avance total (no solo esta semana) */
+  const PJ=cvGet("view","lista")==="proy";
+  const mine0=S.tasks.filter(t=>!t.rt),ids=PJ?cvOrder(S.cats.filter(c=>c.proj).map(c=>c.id)):cvOrder(cvCats());
+  if(!ids.length){box.innerHTML=PJ?`<div class="cvpjempty"><p><b>Todavía no marcaste ningún proyecto.</b></p><p class="note">En <b>Categorías y colores</b>, toca <span class="pj on" style="pointer-events:none"><span class="pji">◆</span><span class="pjt">Proyecto</span></span> en las categorías que son proyectos. Aquí verás solo esas, con su avance.</p></div>`:`<p class="cvempty">Todavía no hay tareas para mostrar.</p>`;return}
   const isH=t=>plan[t.id]&&plan[t.id].o===0;
   const RM=(()=>{const o=cvGet("rows",{});return o&&typeof o==="object"&&!Array.isArray(o)?o:{}})();
   const cols=ids.map(id=>{
     const c=cat(id),mine=mine0.filter(t=>t.cat===id);
-    const open=mine.filter(t=>!t.done),dn=mine.filter(t=>t.done&&weekIdx(t.doneOn)===0);
+    const open=mine.filter(t=>!t.done),dn=mine.filter(t=>t.done&&(PJ||weekIdx(t.doneOn)===0));
     const ord=open.filter(isH).sort((a,b)=>plan[a.id].s-plan[b.id].s).concat(open.filter(t=>!isH(t)));
     const tot=open.length+dn.length,pend=open.reduce((a,t)=>a+(t.min>0?t.min:0),0),pct=tot?Math.round(dn.length/tot*100):0;
     const k=Math.max(1,Math.min(ord.length,Number(RM[String(id)])||CVN)),rows=ord.map((t,i)=>`<li class="cvr${i===0?" next":""}${i>=k?" cvh":""}"${i===0?' title="Siguiente en esta categoría"':""}><span class="cvn">${i+1}</span><span class="cvt" title="${esc(plain(t.text))}">${md(t.text)}</span><span class="cvm">${t.min>0?t.min:"–"}</span><span class="cvw${isH(t)?" h":""}">${isH(t)?hm(plan[t.id].s):"cola"}</span></li>`).join("");
@@ -997,7 +1001,8 @@ function renderCatView(plan){
       <div class="cvst"><span><b>${dn.length}/${tot}</b> hechas</span><span>${pend?`<b>${fmt(pend)} h</b> pend.`:"al día ✓"}</span></div>
       ${rows?`<ul class="cvl">${rows}</ul>`:`<p class="cvempty">Sin tareas pendientes ✓</p>`}
       <p class="cvmore"${ord.length>k?"":" hidden"}>+ ${ord.length-k} más en esta categoría</p></div>${ord.length>1?`<div class="cvgrip" role="separator" aria-orientation="horizontal" title="Arrastra para cambiar la altura · doble clic: tamaño automático"></div>`:""}</section>`}).join("");
-  box.innerHTML=`<div class="cvtop"><span>Solo vista · todas las categorías · mismo orden de la lista (Hoy primero, luego Cola) · hechas = esta semana · arrastra la barra de color para reacomodar · arrastra el borde de abajo para cambiar la altura</span></div>
+  box.innerHTML=PJ?`<div class="cvtop"><span>Solo proyectos · avance total (todas sus tareas hechas) · mismo orden de la lista (Hoy primero, luego Cola) · elige qué categorías son proyecto en <b>Categorías y colores</b></span></div>
+    <div class="cvgrid">${cols}</div>`:`<div class="cvtop"><span>Solo vista · todas las categorías · mismo orden de la lista (Hoy primero, luego Cola) · hechas = esta semana · arrastra la barra de color para reacomodar · arrastra el borde de abajo para cambiar la altura</span></div>
     <div class="cvgrid">${cols}</div>`}
 /* ===== GANTT =====
    Carriles = categorías (se empieza con una). Debajo de cada categoría van sus timelines: filas con nombre
@@ -1280,12 +1285,13 @@ function renderCats(){
   [1,2,3].forEach(lv=>{const g=S.cats.filter(c=>c.lvl===lv);if(!g.length)return;
     const h=document.createElement("div");h.className="sep";h.style.margin="6px 0 0";h.innerHTML=`<span class="pdot p${lv}">P${lv}</span> Prioridad ${lv}`;C.appendChild(h);
     g.forEach((c,k)=>{const d=document.createElement("div");d.className="cat cato";
-    d.innerHTML=`<span class="ord">${k+1}</span><span class="pl"><input type="color" value="${c.color}" aria-label="Color"></span><input class="cn" value="${esc(c.name)}" aria-label="Nombre"><select aria-label="Prioridad">${[1,2,3].map(n=>`<option value="${n}"${n==c.lvl?" selected":""}>Prioridad ${n}</option>`).join("")}</select><span class="mv"><button class="up" aria-label="Subir" ${k?"":"disabled"}>↑</button><button class="dw" aria-label="Bajar" ${k<g.length-1?"":"disabled"}>↓</button></span><button class="x" aria-label="Borrar categoría">×</button>`;
+    d.innerHTML=`<span class="ord">${k+1}</span><span class="pl"><input type="color" value="${c.color}" aria-label="Color"></span><input class="cn" value="${esc(c.name)}" aria-label="Nombre"><select aria-label="Prioridad">${[1,2,3].map(n=>`<option value="${n}"${n==c.lvl?" selected":""}>Prioridad ${n}</option>`).join("")}</select><button type="button" class="pj${c.proj?" on":""}" aria-pressed="${!!c.proj}" title="${c.proj?"Es un proyecto: aparece en la pestaña Proyectos":"Marcar como proyecto (aparece en la pestaña Proyectos)"}"><span class="pji" aria-hidden="true">◆</span><span class="pjt">Proyecto</span></button><span class="mv"><button class="up" aria-label="Subir" ${k?"":"disabled"}>↑</button><button class="dw" aria-label="Bajar" ${k<g.length-1?"":"disabled"}>↓</button></span><button class="x" aria-label="Borrar categoría">×</button>`;
     const sw=o=>{const a=S.cats.indexOf(c),b=S.cats.indexOf(g[k+o]);[S.cats[a],S.cats[b]]=[S.cats[b],S.cats[a]];commit()};
     d.querySelector(".up").onclick=()=>sw(-1);d.querySelector(".dw").onclick=()=>sw(1);
     d.querySelector("input[type=color]").onchange=e=>{c.color=e.target.value;commit()};
     d.querySelector(".cn").onchange=e=>{c.name=e.target.value.trim()||c.name;commit()};
     d.querySelector("select").onchange=e=>{c.lvl=+e.target.value;commit()};
+    d.querySelector(".pj").onclick=()=>{c.proj=!c.proj;commit();flash(c.proj?`«${c.name}» ahora es un proyecto: lo verás en la pestaña Proyectos.`:`«${c.name}» ya no es un proyecto.`)};
     d.querySelector(".x").onclick=()=>{if(S.tasks.some(t=>t.cat===c.id)||S.resp.some(r=>r.cat===c.id)){flash("Esa categoría tiene tareas. Muévelas antes de borrarla.");return}
       if(S.gantt&&(S.gantt.items.some(it=>it.cat===c.id)||S.gantt.rows.some(r=>r.cat===c.id))){flash("Esa categoría tiene timelines en el Gantt. Cámbiales la categoría o bórralos antes.");return}
       askDel(`¿Borrar la categoría <b>${esc(c.name)}</b>?`,()=>{S.cats=S.cats.filter(x=>x.id!==c.id);commit();flashU("Categoría borrada: "+c.name)})};

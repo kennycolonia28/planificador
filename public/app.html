@@ -283,18 +283,25 @@ details[open].panel summary h2::before{content:"▾ "}
 .tagrow{display:grid;grid-template-columns:52px minmax(0,1fr) 140px 70px 26px;gap:8px;align-items:center}
 .tagrow .cnt{font:500 12px var(--mono);color:var(--muted);text-align:right}
 @media (max-width:760px){.tagrow{grid-template-columns:52px minmax(0,1fr) 70px 26px}.tagrow .prev{display:none}}
-.cato{grid-template-columns:22px 52px minmax(0,1fr) 120px 58px 26px}
+.cato{grid-template-columns:22px 52px minmax(0,1fr) 120px 96px 58px 26px}
+.pj{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font:600 12px var(--body);cursor:pointer;white-space:nowrap}
+.pj .pji{font-size:10px;opacity:.5}
+.pj:hover{border-color:var(--accent);color:var(--ink)}
+.pj.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink,#fff)}
+.pj.on .pji{opacity:1}
+.cvpjempty{padding:28px 8px;text-align:center}
+.cvpjempty .pj{margin:0 2px;vertical-align:middle}
 .cato .ord{font:600 12px var(--mono);color:var(--muted);text-align:center}
 .cato .mv{display:flex;gap:2px}
 .cato .mv button{padding:3px 7px;font-size:13px}
 .cato .mv button:disabled{opacity:.3;cursor:default}
 /* categorías: una sola línea por fila, compacta */
 #cats{gap:4px!important}
-.cato{grid-template-columns:18px 40px minmax(0,1fr) 128px 54px 22px;gap:6px}
+.cato{grid-template-columns:18px 40px minmax(0,1fr) 128px 96px 54px 22px;gap:6px}
 .cato input:not([type=color]),.cato select{padding:4px 8px;font-size:13px}
 .cato input[type=color]{width:36px;height:26px;padding:1px}
 .cato .mv button{padding:2px 6px}
-@media (max-width:760px){.cato{grid-template-columns:14px 34px minmax(0,1fr) 112px 50px 20px;gap:4px}.cato select{grid-column:auto;font-size:12px;padding:4px}}
+@media (max-width:760px){.cato{grid-template-columns:14px 30px minmax(0,1fr) 78px 30px 50px 20px;gap:4px}.cato .pj{padding:4px 0;width:28px}.cato .pj .pjt{display:none}.cato .pj .pji{font-size:12px}.cato select{grid-column:auto;font-size:12px;padding:4px}}
 .pvh .ln.tgl{grid-template-columns:128px minmax(0,1fr) auto}
 .pvh .ln.tgl .tg{justify-self:start;font-size:11.5px;padding:2px 9px;max-width:128px;overflow:hidden;text-overflow:ellipsis}
 .vf{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -520,10 +527,11 @@ details.synth .sg{margin-top:14px}
 .vtabs button.on{background:var(--accent);color:var(--accent-ink,#fff);box-shadow:0 1px 4px rgba(0,0,0,.22);cursor:default}
 .vtabs button.on:hover{background:var(--accent);color:var(--accent-ink,#fff)}
 .vtabs .vi{font-size:15px;line-height:1}
-@media (max-width:560px){.vtabs{display:flex;align-self:stretch}.vtabs button{flex:1;justify-content:center;padding:10px 8px}}
+.vtabs .tls{display:none}
+@media (max-width:560px){.vtabs{display:flex;align-self:stretch}.vtabs button{flex:1;justify-content:center;padding:10px 4px;font-size:13px;gap:4px}.vtabs .vi{display:none}.vtabs .tll{display:none}.vtabs .tls{display:inline}}
 #catview{display:none;flex-direction:column;gap:12px}
-.panel.main[data-v="cat"] #catview{display:flex}
-.panel.main[data-v="cat"]>.thead,.panel.main[data-v="cat"]>#vf,.panel.main[data-v="cat"]>.cols,.panel.main[data-v="cat"]>#list,.panel.main[data-v="cat"]>#addForm{display:none!important}
+.panel.main[data-v="cat"] #catview,.panel.main[data-v="proy"] #catview{display:flex}
+.panel.main[data-v="cat"]>.thead,.panel.main[data-v="cat"]>#vf,.panel.main[data-v="cat"]>.cols,.panel.main[data-v="cat"]>#list,.panel.main[data-v="cat"]>#addForm,.panel.main[data-v="proy"]>.thead,.panel.main[data-v="proy"]>#vf,.panel.main[data-v="proy"]>.cols,.panel.main[data-v="proy"]>#list,.panel.main[data-v="proy"]>#addForm{display:none!important}
 .cvtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .cvtop .sp{flex:1}
 .cvset>summary{cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:5px;padding:3px 8px;font:600 11px var(--body);letter-spacing:.04em;text-transform:uppercase;background:var(--surface);color:var(--muted)}
@@ -873,7 +881,7 @@ details.synth .sg{margin-top:14px}
   </details>
 
   <section class="panel main" aria-label="Tareas" data-v="lista">
-    <div class="vtabs" role="tablist" aria-label="Vista de tareas"><button type="button" role="tab" data-v="lista" class="on" aria-selected="true"><span class="vi" aria-hidden="true">☰</span>Lista</button><button type="button" role="tab" data-v="cat" aria-selected="false"><span class="vi" aria-hidden="true">▦</span>Vista por categoría</button><button type="button" role="tab" data-v="gantt" aria-selected="false"><span class="vi" aria-hidden="true">▬</span>Gantt</button></div>
+    <div class="vtabs" role="tablist" aria-label="Vista de tareas"><button type="button" role="tab" data-v="lista" class="on" aria-selected="true"><span class="vi" aria-hidden="true">☰</span>Lista</button><button type="button" role="tab" data-v="cat" aria-selected="false"><span class="vi" aria-hidden="true">▦</span><span class="tll">Vista por categoría</span><span class="tls">Categorías</span></button><button type="button" role="tab" data-v="proy" aria-selected="false"><span class="vi" aria-hidden="true">◆</span>Proyectos</button><button type="button" role="tab" data-v="gantt" aria-selected="false"><span class="vi" aria-hidden="true">▬</span>Gantt</button></div>
     <div class="thead">
       <h2>Tareas</h2>
       <span class="fromw"><label for="from">desde</label><input type="time" id="from" class="ghostin"><button id="now" class="ghost sm" title="Usar la hora actual">ahora</button></span>
