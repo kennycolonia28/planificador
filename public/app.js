@@ -1001,7 +1001,7 @@ function renderCatView(plan){
   const busy=cvDrag||cvRz;if(busy){busy.pend=plan;return}
   /* pestaña Proyectos: mismas tarjetas, solo las categorías marcadas como proyecto, con su avance total (no solo esta semana) */
   const PJ=cvGet("view","lista")==="proy";
-  if(PJ)return renderProjBoard(box,plan);
+  if(PJ){try{renderProjBoard(box,plan)}catch(e){console.error(e);box.innerHTML=`<div class="cvpjempty"><p><b>No pude dibujar el tablero de proyectos.</b></p><p class="note">Error: ${esc(String(e&&e.message||e))}</p><p class="note">${esc(String(e&&e.stack||"").split("\n").slice(0,3).join(" | "))}</p></div>`}return}
   const mine0=S.tasks.filter(t=>!t.rt),ids=PJ?cvOrder(S.cats.filter(c=>c.proj).map(c=>c.id)):cvOrder(cvCats());
   if(!ids.length){box.innerHTML=PJ?`<div class="cvpjempty"><p><b>Todavía no marcaste ningún proyecto.</b></p><p class="note">En <b>Categorías y colores</b>, toca <span class="pj on" style="pointer-events:none"><span class="pji">◆</span><span class="pjt">Proyecto</span></span> en las categorías que son proyectos. Aquí verás solo esas, con su avance.</p></div>`:`<p class="cvempty">Todavía no hay tareas para mostrar.</p>`;return}
   const isH=t=>plan[t.id]&&plan[t.id].o===0;
