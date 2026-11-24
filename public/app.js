@@ -1555,6 +1555,13 @@ function renderGcal(){const P=$("gcalBody");if(!P)return;const g=S.gcal||{},rd=g
    La tarjeta muestra su siguiente paso (la próxima tarea pendiente) y hace cuántos días completaste algo del proyecto. */
 const PSTG=[["idea","Idea","Lo quieres hacer, aún sin plan"],["plan","Planificando","Definiendo pasos"],["run","En marcha","Avanzando ahora"],["pause","En pausa","Detenido por ahora"],["done","Terminado","Listo"]];
 let pjDrag=null;
+/* orden propio del tablero (no toca la importancia de las categorías) */
+const pjIdx=c=>{const o=S.pjOrder||[],i=o.indexOf(String(c.id));return i<0?1e4+S.cats.indexOf(c):i};
+const pjSort=L=>L.slice().sort((a,b)=>pjIdx(a)-pjIdx(b));
+/* coloca un proyecto antes o después de otro (y en la etapa de ese otro) */
+function pjPlace(id,refId,after,st){const P=pjSort(S.cats.filter(c=>c.proj)).map(c=>String(c.id)),c=S.cats.find(x=>String(x.id)===String(id));if(!c)return;
+  const o=P.filter(x=>x!==String(id));let at=refId?o.indexOf(String(refId)):-1;if(at<0)at=o.length;else if(after)at++;o.splice(at,0,String(id));
+  const old=c.stage;S.pjOrder=o;c.stage=st;commit();if(old!==st)flash(`«${c.name}» → ${PSTG.find(x=>x[0]===st)[1]}`)}
 function renderProjBoard(box,plan){
   const P=S.cats.filter(c=>c.proj);
   if(!P.length){box.innerHTML=`<div class="cvpjempty"><p><b>Todavía no marcaste ningún proyecto.</b></p><p class="note">En <b>Categorías y colores</b>, toca <span class="pj on" style="pointer-events:none"><span class="pji">◆</span><span class="pjt">Proyecto</span></span> en las categorías que son proyectos.</p></div>`;return}
@@ -1571,15 +1578,21 @@ function renderProjBoard(box,plan){
     return`<article class="pjc" draggable="true" data-id="${esc(String(c.id))}" style="--cc:${c.color};--ct:${cvInk(c.color)}">
       <h4><span class="pjnm" title="${esc(c.name)}">${esc(c.name)}</span></h4>
       <div class="pjb">${nx}<div class="pjm">${dot}<span class="pjc2">${dn.length}/${tot} hechas${pend?` · ${fmt(pend)} h pend.`:""}</span></div>${tot?`<div class="pjbar"><i style="width:${pct}%"></i></div>`:""}<select class="pjst" aria-label="Etapa de ${esc(c.name)}" title="Cambiar etapa (también puedes arrastrar la tarjeta)">${PSTG.map(x=>`<option value="${x[0]}"${x[0]===st?" selected":""}>${x[1]}</option>`).join("")}</select></div></article>`};
-  box.innerHTML=`<div class="cvtop"><span>Arrastra cada proyecto a su etapa · cada tarjeta muestra su siguiente paso y hace cuánto avanzaste (🟢 menos de 3 días · 🟡 3 a 7 · 🔴 más de 7)</span></div>
-    <div class="pjboard">${PSTG.map(([k,n,h])=>{const L=P.filter(c=>(PSTG.some(x=>x[0]===c.stage)?c.stage:"run")===k);
+  box.innerHTML=`<div class="cvtop"><span>Arrastra cada proyecto a su etapa o arriba/abajo para ordenarlo · cada tarjeta muestra su siguiente paso y hace cuánto avanzaste (🟢 menos de 3 días · 🟡 3 a 7 · 🔴 más de 7)</span></div>
+    <div class="pjboard">${PSTG.map(([k,n,h])=>{const L=pjSort(P.filter(c=>(PSTG.some(x=>x[0]===c.stage)?c.stage:"run")===k));
       return`<section class="pjcol" data-st="${k}" aria-label="${n}"><header><b>${n}</b><span>${L.length}</span></header><p class="pjh">${h}</p><div class="pjlist">${L.map(card).join("")||`<p class="pjempty">Arrastra aquí</p>`}</div></section>`}).join("")}</div>`;
   const setStage=(id,st)=>{const c=S.cats.find(x=>String(x.id)===String(id));if(!c||c.stage===st)return;c.stage=st;commit();flash(`«${c.name}» → ${PSTG.find(x=>x[0]===st)[1]}`)};
   box.querySelectorAll(".pjc").forEach(el=>{const id=el.dataset.id;
     el.querySelector(".pjst").onchange=e=>setStage(id,e.target.value);
     el.addEventListener("dragstart",ev=>{if(ev.target.closest("input,select,button")){ev.preventDefault();return}pjDrag=id;el.classList.add("drag");ev.dataTransfer.effectAllowed="move";try{ev.dataTransfer.setData("text/plain",id)}catch(_){}});
-    el.addEventListener("dragend",()=>{pjDrag=null;el.classList.remove("drag");box.querySelectorAll(".pjcol").forEach(x=>x.classList.remove("ov"))});
+    el.addEventListener("dragend",()=>{pjDrag=null;el.classList.remove("drag");box.querySelectorAll(".pjcol").forEach(x=>x.classList.remove("ov"));box.querySelectorAll(".pjc").forEach(x=>x.classList.remove("ovt","ovb"))});
     el.addEventListener("click",ev=>{if(ev.target.closest("input,select,button,form,a"))return;pjOpen(id)});
+    /* soltar sobre otra tarjeta: queda arriba o abajo de ella (línea azul) */
+    el.addEventListener("dragover",ev=>{if(!pjDrag||pjDrag===id)return;ev.preventDefault();ev.stopPropagation();const b=el.getBoundingClientRect(),low=ev.clientY>b.top+b.height/2;
+      el.classList.toggle("ovb",low);el.classList.toggle("ovt",!low);box.querySelectorAll(".pjcol").forEach(x=>x.classList.toggle("ov",x===el.closest(".pjcol")))});
+    el.addEventListener("dragleave",()=>el.classList.remove("ovt","ovb"));
+    el.addEventListener("drop",ev=>{if(!pjDrag||pjDrag===id)return;ev.preventDefault();ev.stopPropagation();const low=el.classList.contains("ovb"),src=pjDrag;pjDrag=null;
+      el.classList.remove("ovt","ovb");pjPlace(src,id,low,el.closest(".pjcol").dataset.st)});
     const f=el.querySelector(".pjadd");if(f)f.onsubmit=e=>{e.preventDefault();const tx=f.querySelector(".pjtx").value.trim(),mn=parseInt(f.querySelector(".pjmn").value);
       if(!tx){f.querySelector(".pjtx").focus();return}if(!(mn>0)){f.querySelector(".pjmn").focus();return}
       const c=S.cats.find(x=>String(x.id)===String(id));catTouch(c.id);
@@ -1588,7 +1601,8 @@ function renderProjBoard(box,plan){
   box.querySelectorAll(".pjcol").forEach(col=>{
     col.addEventListener("dragover",ev=>{if(!pjDrag)return;ev.preventDefault();col.classList.add("ov")});
     col.addEventListener("dragleave",ev=>{if(!col.contains(ev.relatedTarget))col.classList.remove("ov")});
-    col.addEventListener("drop",ev=>{if(!pjDrag)return;ev.preventDefault();col.classList.remove("ov");const id=pjDrag;pjDrag=null;setStage(id,col.dataset.st)})})}
+    col.addEventListener("drop",ev=>{if(!pjDrag)return;ev.preventDefault();col.classList.remove("ov");const id=pjDrag;pjDrag=null;
+      const L=[...col.querySelectorAll(".pjc")].map(x=>x.dataset.id).filter(x=>x!==id);pjPlace(id,L.length?L[L.length-1]:null,true,col.dataset.st)})})}
 
 
 /* ---------- ventana de detalle de un proyecto ---------- */
