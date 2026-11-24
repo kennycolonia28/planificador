@@ -795,6 +795,11 @@ function render(){
         const el=t.sep?sepRow(t,zone):taskRow(t,whenFn(t),zone);if(plan[t.id])el.dataset.s=plan[t.id].s;tgt().appendChild(el)})});
     if(zone==="hoy")gEventRows(L,ptCardAt,pT);
     /* resumen al pie de cada tarjeta, igual que el del día: % · tareas · usado de disponible · libre */
+    /* si el filtro "Ver:" oculta tareas, cada tarjeta lo dice y permite mostrarlas otra vez */
+    if(zone==="hoy"&&S.view)L.querySelectorAll(".pcard").forEach(c=>{const n=c.querySelectorAll(":scope>.row[hidden]:not(.gev)").length;if(!n)return;
+      const g=S.view==="none"?{name:"Sin etiqueta"}:tagOf(S.view)||{name:"etiqueta"},d=document.createElement("div");d.className="pfil";
+      d.innerHTML=`<span>${n} tarea${n===1?"":"s"} oculta${n===1?"":"s"} por el filtro «${esc(g.name)}»</span><button type="button" class="ghost sm">Ver todas</button>`;
+      d.querySelector("button").onclick=()=>{S.view=null;commit()};c.appendChild(d)});
     if(zone==="hoy")L.querySelectorAll(".pcard").forEach(c=>{const pt=c.dataset.p,f=document.createElement("div");f.className="sum psum";const a=pT[pt],cap=capPt(pt),u=pMin[pt];f.innerHTML=`${noT(a)}${mini(u,cap)}${noSep(a).length} tarea${noSep(a).length===1?"":"s"} · <b>${fmt(u)} h</b> de ${fmt(cap)} h · libre ${fmt(Math.max(0,cap-u))} h`;c.appendChild(f)})};
   /* franja "soltar al final": aparece solo mientras arrastras */
   const endZ=(box,z)=>{const e=document.createElement("div");e.className="endz";e.title="Soltar aquí para dejarlo al final";const ps=box.querySelector(":scope>.psum");ps?box.insertBefore(e,ps):box.appendChild(e);zoneDrop(e,z)};
